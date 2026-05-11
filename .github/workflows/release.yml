@@ -1,0 +1,138 @@
+name: CI / Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build JAR + examples zip
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      bundle_name: ${{ steps.ver.outputs.bundle_name }}
+      pinned_ref: ${{ steps.pin.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install zip
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zip
+
+      - name: Verify GDX_JAVA_SDK_TOKEN secret is configured
+        env:
+          UPSTREAM_TOKEN: ${{ secrets.GDX_JAVA_SDK_TOKEN }}
+        run: |
+          if [ -z "$UPSTREAM_TOKEN" ]; then
+            echo "::error::Missing required secret GDX_JAVA_SDK_TOKEN."
+            echo "::error::Create a PAT (or fine-grained token) with contents:read on gq-godark/gdx-java-sdk."
+            exit 1
+          fi
+
+      - name: Read pinned upstream ref
+        id: pin
+        run: |
+          if [ ! -f sdk/UPSTREAM_REF ]; then
+            echo "::error::sdk/UPSTREAM_REF missing — run scripts/refresh_sdk.sh and commit."
+            exit 1
+          fi
+          ref="$(tr -d '[:space:]' < sdk/UPSTREAM_REF)"
+          if [ -z "$ref" ]; then
+            echo "::error::sdk/UPSTREAM_REF is empty"
+            exit 1
+          fi
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "Pinned upstream ref: ${ref}"
+
+      - name: Checkout pinned upstream gdx-java-sdk
+        uses: actions/checkout@v4
+        with:
+          repository: gq-godark/gdx-java-sdk
+          ref: ${{ steps.pin.outputs.ref }}
+          path: upstream
+          token: ${{ secrets.GDX_JAVA_SDK_TOKEN }}
+          fetch-depth: 0
+
+      - name: Compute version + bundle name
+        id: ver
+        run: |
+          base="$(grep '^version=' upstream/gradle.properties | head -1 | cut -d= -f2 | tr -d '[:space:]')"
+          version="v${base}-build.${{ github.run_number }}"
+          bundle_name="gdx-java-sdk-${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "bundle_name=${bundle_name}" >> "$GITHUB_OUTPUT"
+          echo "Building ${bundle_name}.zip (godark==${base} from upstream pin ${{ steps.pin.outputs.ref }})"
+
+      - name: Build zip via scripts/package.sh
+        env:
+          UPSTREAM_SRC: ${{ github.workspace }}/upstream
+        run: bash scripts/package.sh ${{ steps.ver.outputs.bundle_name }}
+
+      - name: Recipient smoke (unzip + runPlaceOrder)
+        run: |
+          mkdir -p /tmp/recip
+          unzip -q ${{ steps.ver.outputs.bundle_name }}.zip -d /tmp/recip
+          cd /tmp/recip/${{ steps.ver.outputs.bundle_name }}/examples
+          chmod +x gradlew
+          ./gradlew --no-daemon runPlaceOrder
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.ver.outputs.bundle_name }}
+          path: ${{ steps.ver.outputs.bundle_name }}.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Create GitHub release
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.bundle_name }}
+          path: ./release-asset
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.version }}
+          name: ${{ needs.build.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: ./release-asset/${{ needs.build.outputs.bundle_name }}.zip
+          body: |
+            **Automated release** built from commit `${{ github.sha }}`.
+
+            Uber-JAR built from upstream `gq-godark/gdx-java-sdk` at pinned ref
+            `${{ needs.build.outputs.pinned_ref }}`.
+
+            ## Install
+
+            1. Download `${{ needs.build.outputs.bundle_name }}.zip` from the assets below.
+            2. Unzip and follow `README.md` inside the bundle:
+
+               ```bash
+               unzip ${{ needs.build.outputs.bundle_name }}.zip
+               cd ${{ needs.build.outputs.bundle_name }}
+               cd examples && chmod +x gradlew && ./gradlew runPlaceOrder
+               ```

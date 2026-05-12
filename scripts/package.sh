@@ -68,7 +68,11 @@ else
   git -C "$UPSTREAM_SRC" checkout --quiet "$PINNED_REF"
 fi
 
+PARITY_TMP=""
 cleanup() {
+  if [[ -n "$PARITY_TMP" && -d "$PARITY_TMP" ]]; then
+    rm -rf "$PARITY_TMP"
+  fi
   if [[ "$CLEANUP_UPSTREAM" == true && -n "${UPSTREAM_SRC:-}" ]]; then
     rm -rf "$(dirname "$UPSTREAM_SRC")"
   fi
@@ -113,16 +117,29 @@ if [[ -z "$VENDOR_JAR" ]]; then
   exit 1
 fi
 
-SUM_BUILT="$(sha256sum "$BUILT_JAR" | awk '{print $1}')"
-SUM_VENDOR="$(sha256sum "$VENDOR_JAR" | awk '{print $1}')"
-if [[ "$SUM_BUILT" != "$SUM_VENDOR" ]]; then
-  echo "error: vendored jar does not match upstream shadowJar for pin $PINNED_REF" >&2
-  echo "  built:  $SUM_BUILT  $BUILT_JAR" >&2
-  echo "  vendor: $SUM_VENDOR  $VENDOR_JAR" >&2
+# Content-parity check: ensure every entry inside the vendored jar matches the
+# corresponding entry inside the upstream shadowJar (same path, same bytes).
+# We deliberately do NOT compare the whole-jar SHA256, because shadowJar's zip
+# envelope (entry order, compression metadata, etc.) varies subtly across
+# runner environments even with isPreserveFileTimestamps=false and
+# isReproducibleFileOrder=true. What we actually care about is that no local
+# edit to sdk/lib has introduced or modified a class file vs. the pinned
+# upstream source.
+PARITY_TMP="$(mktemp -d)"
+unzip -q "$BUILT_JAR"  -d "$PARITY_TMP/built"
+unzip -q "$VENDOR_JAR" -d "$PARITY_TMP/vendor"
+if ! diff -rq "$PARITY_TMP/built" "$PARITY_TMP/vendor" >"$PARITY_TMP/diff.out" 2>&1; then
+  echo "error: vendored jar content does not match upstream shadowJar for pin $PINNED_REF" >&2
+  echo "  built:  $BUILT_JAR" >&2
+  echo "  vendor: $VENDOR_JAR" >&2
+  echo "::group::content diff (paths only)" >&2
+  sed -E "s|$PARITY_TMP/built|<built>|g; s|$PARITY_TMP/vendor|<vendor>|g" \
+    "$PARITY_TMP/diff.out" | head -50 >&2
+  echo "::endgroup::" >&2
   echo "  fix: bash scripts/refresh_sdk.sh $UPSTREAM_SRC && git add sdk/ && git commit" >&2
   exit 1
 fi
-echo "Parity check passed: sdk/lib jar matches upstream build"
+echo "Parity check passed: sdk/lib jar contents match upstream build (envelope may differ)"
 
 STAGING_DIR="$(mktemp -d)"
 DEST="$STAGING_DIR/$DIST_NAME"

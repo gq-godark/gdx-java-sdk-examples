@@ -120,13 +120,26 @@ jobs:
           UPSTREAM_SRC: ${{ github.workspace }}/upstream
         run: bash scripts/package.sh ${{ steps.ver.outputs.bundle_name }}
 
-      - name: Recipient smoke (unzip + runQuickstart)
+      - name: Recipient smoke (unzip + runQuickstart, no creds)
         run: |
           mkdir -p /tmp/recip
           unzip -q ${{ steps.ver.outputs.bundle_name }}.zip -d /tmp/recip
           cd /tmp/recip/${{ steps.ver.outputs.bundle_name }}/examples
           chmod +x gradlew
-          ./gradlew --no-daemon runQuickstart
+
+          # Quickstart requires GODARK_API_KEY_ID + GODARK_API_SECRET. CI has
+          # no testnet creds, so we expect it to print the missing-credentials
+          # message and exit non-zero. That outcome proves: (a) the shipped
+          # uber-jar resolved on the classpath, (b) examples compiled against
+          # it, (c) ExamplesEnv parsed, and (d) main() reached the credential
+          # check. Any *other* failure mode (compile error, NoClassDefFound,
+          # etc.) still fails this step.
+          out="$(./gradlew --no-daemon runQuickstart 2>&1 || true)"
+          echo "$out"
+          echo "$out" | grep -q "Missing credentials: set GODARK_API_KEY_ID" || {
+            echo "::error::quickstart did not produce expected missing-credentials message — see log above"
+            exit 1
+          }
 
       - name: Upload bundle as workflow artifact
         uses: actions/upload-artifact@v4

@@ -9,11 +9,29 @@ on:
 permissions:
   contents: read
 
+# Cancel in-flight runs of the same PR (so updates don't pile up runners), but
+# never cancel a push-to-main run — releases are precious.
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # --------------------------------------------------------------------------
+  # build: uber-JAR + examples zip + recipient smoke (./gradlew runQuickstart).
+  #
+  # The zip is built from a fresh checkout of gq-godark/gdx-java-sdk@<ref>
+  # where <ref> is read from sdk/UPSTREAM_REF in this repo. The vendored
+  # sdk/lib/godark-*-all.jar is parity-checked (SHA256) against the freshly
+  # built upstream shadowJar inside scripts/package.sh. Local edits to sdk/
+  # cannot reach the released artifact.
+  #
+  # Required secrets:
+  #   GDX_APP_ID            — GitHub App id (the GDX_APP)
+  #   GDX_APP_PRIVATE_KEY   — GitHub App private key (PEM)
+  #
+  # The app must be installed on gq-godark with read access to gdx-java-sdk
+  # AND gdx-proto (gdx-java-sdk uses gdx-proto via submodule).
+  # --------------------------------------------------------------------------
   build:
     name: Build JAR + examples zip
     runs-on: ubuntu-latest
@@ -23,9 +41,25 @@ jobs:
       bundle_name: ${{ steps.ver.outputs.bundle_name }}
       pinned_ref: ${{ steps.pin.outputs.ref }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout examples repo
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Verify GitHub App secrets are configured
+        env:
+          APP_ID: ${{ secrets.GDX_APP_ID }}
+          APP_KEY: ${{ secrets.GDX_APP_PRIVATE_KEY }}
+        run: |
+          missing=()
+          [ -n "$APP_ID" ]  || missing+=(GDX_APP_ID)
+          [ -n "$APP_KEY" ] || missing+=(GDX_APP_PRIVATE_KEY)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secret(s): ${missing[*]}"
+            echo "::error::Install the GDX_APP GitHub App credentials under repo Settings -> Secrets and variables -> Actions, and ensure the app is installed on gq-godark with contents:read on gdx-java-sdk + gdx-proto."
+            exit 1
+          fi
+
+      - name: Setup JDK 17 (Temurin)
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
@@ -33,15 +67,14 @@ jobs:
       - name: Install zip
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zip
 
-      - name: Verify GDX_JAVA_SDK_TOKEN secret is configured
-        env:
-          UPSTREAM_TOKEN: ${{ secrets.GDX_JAVA_SDK_TOKEN }}
-        run: |
-          if [ -z "$UPSTREAM_TOKEN" ]; then
-            echo "::error::Missing required secret GDX_JAVA_SDK_TOKEN."
-            echo "::error::Create a PAT (or fine-grained token) with contents:read on gq-godark/gdx-java-sdk."
-            exit 1
-          fi
+      - name: Mint GDX_APP token (scoped to upstream + submodule)
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GDX_APP_ID }}
+          private-key: ${{ secrets.GDX_APP_PRIVATE_KEY }}
+          owner: gq-godark
+          repositories: gdx-java-sdk,gdx-proto
 
       - name: Read pinned upstream ref
         id: pin
@@ -64,16 +97,21 @@ jobs:
           repository: gq-godark/gdx-java-sdk
           ref: ${{ steps.pin.outputs.ref }}
           path: upstream
-          token: ${{ secrets.GDX_JAVA_SDK_TOKEN }}
-          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 1
+          submodules: recursive
 
       - name: Compute version + bundle name
         id: ver
         run: |
           base="$(grep '^version=' upstream/gradle.properties | head -1 | cut -d= -f2 | tr -d '[:space:]')"
+          if [ -z "$base" ]; then
+            echo "::error::Could not parse 'version=' from upstream/gradle.properties"
+            exit 1
+          fi
           version="v${base}-build.${{ github.run_number }}"
           bundle_name="gdx-java-sdk-${version}"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}"         >> "$GITHUB_OUTPUT"
           echo "bundle_name=${bundle_name}" >> "$GITHUB_OUTPUT"
           echo "Building ${bundle_name}.zip (godark==${base} from upstream pin ${{ steps.pin.outputs.ref }})"
 
@@ -82,21 +120,39 @@ jobs:
           UPSTREAM_SRC: ${{ github.workspace }}/upstream
         run: bash scripts/package.sh ${{ steps.ver.outputs.bundle_name }}
 
-      - name: Recipient smoke (unzip + runQuickstart)
+      - name: Recipient smoke (unzip + runQuickstart, no creds)
         run: |
           mkdir -p /tmp/recip
           unzip -q ${{ steps.ver.outputs.bundle_name }}.zip -d /tmp/recip
           cd /tmp/recip/${{ steps.ver.outputs.bundle_name }}/examples
           chmod +x gradlew
-          ./gradlew --no-daemon runQuickstart
 
-      - uses: actions/upload-artifact@v4
+          # Quickstart requires GODARK_API_KEY_ID + GODARK_API_SECRET. CI has
+          # no testnet creds, so we expect it to print the missing-credentials
+          # message and exit non-zero. That outcome proves: (a) the shipped
+          # uber-jar resolved on the classpath, (b) examples compiled against
+          # it, (c) ExamplesEnv parsed, and (d) main() reached the credential
+          # check. Any *other* failure mode (compile error, NoClassDefFound,
+          # etc.) still fails this step.
+          out="$(./gradlew --no-daemon runQuickstart 2>&1 || true)"
+          echo "$out"
+          echo "$out" | grep -q "Missing credentials: set GODARK_API_KEY_ID" || {
+            echo "::error::quickstart did not produce expected missing-credentials message — see log above"
+            exit 1
+          }
+
+      - name: Upload bundle as workflow artifact
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.ver.outputs.bundle_name }}
           path: ${{ steps.ver.outputs.bundle_name }}.zip
           if-no-files-found: error
           retention-days: 14
 
+  # --------------------------------------------------------------------------
+  # release: tag + GitHub release attached to the prebuilt zip.
+  # Only on push to main, after build passes.
+  # --------------------------------------------------------------------------
   release:
     name: Create GitHub release
     needs: build
@@ -106,14 +162,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - name: Download prebuilt zip from build job
+        uses: actions/download-artifact@v4
         with:
           name: ${{ needs.build.outputs.bundle_name }}
           path: ./release-asset
 
-      - uses: softprops/action-gh-release@v2
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build.outputs.version }}
           name: ${{ needs.build.outputs.version }}
@@ -136,3 +195,6 @@ jobs:
                cd ${{ needs.build.outputs.bundle_name }}
                cd examples && chmod +x gradlew && ./gradlew runQuickstart
                ```
+
+            See `README.md` and `SDK_REFERENCE.md` inside the bundle for the
+            full integration docs.

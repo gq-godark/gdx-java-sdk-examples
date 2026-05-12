@@ -1,18 +1,18 @@
 # GoDark Java SDK
 
 This package provides the GoDark Java SDK (prebuilt **uber-JAR** `godark-*-all.jar`) and minimal
-examples for wire-level request construction. **v0.1** does not yet include the full encrypted
-WebSocket client — use the Python SDK for production trading until Java reaches parity.
+examples for encrypted darkpool trading.
+
+Supported order types in this distribution: `MARKET`, `LIMIT`.
 
 ## Package contents
 
-- `sdk/lib/` — prebuilt `godark-*-all.jar` (includes gRPC + Netty shaded + protobuf); no Maven
-  registry required
-- `sdk/UPSTREAM_REF` — exact `gdx-java-sdk` git commit this JAR was built from
-- `sdk/shared/symbols.json` — cross-SDK symbol map snapshot
-- `examples/` — Gradle project + sample `main` classes (`PlaceOrder`, `CancelOrder`, …)
-- `SDK_REFERENCE.md` — API reference
-- `.env.example` — environment template
+- `sdk/lib/` — prebuilt `godark-*-all.jar` for offline use (no private Maven registry required)
+- `sdk/UPSTREAM_REF` — exact upstream git pin used to build the JAR
+- `sdk/shared/symbols.json` — symbol map snapshot
+- `examples/` — Gradle project (`./gradlew runQuickstart`, `./gradlew runFullTraderExample`)
+- `SDK_REFERENCE.md` — short API orientation
+- `.env.example` — environment template (copy to `.env` at package root or under `examples/`)
 
 ## 1) Prerequisites
 
@@ -24,37 +24,55 @@ sudo apt-get update
 sudo apt-get install -y openjdk-17-jdk zip unzip
 ```
 
-## 2) Configure environment (optional)
+## 2) Create testnet credentials
 
-For offline wire samples, defaults are sufficient. For live trading (once supported), copy and
-fill:
+1. Open frontend: `https://app.godark-dex.com`
+2. Create an account using email.
+3. Fund the account using faucet: `https://faucet.godark-dex.com`
+4. Go to **Settings → API Key Management** and create an API key.
+
+## 3) Configure environment
+
+Copy `.env.example` to `.env` and set:
+
+- `GODARK_API_KEY_ID`
+- `GODARK_API_SECRET`
 
 ```bash
 cp .env.example .env
-# export variables or use a tool that loads .env
+# optional: cp .env.example examples/.env
 ```
 
-## 3) Run an example
+Optional: `GODARK_EDGE_URL` (defaults to `wss://api.godark-dex.com`), `GODARK_USER_UUID`, `GODARK_TLS_SKIP_VERIFY` for local edges.
+
+## 4) Run examples
+
+From the unzipped root:
 
 ```bash
 cd examples
-chmod +x gradlew  # if needed
-./gradlew --no-daemon runPlaceOrder
-./gradlew --no-daemon runCancelOrder
-./gradlew --no-daemon runStreamOrderbook
+chmod +x gradlew   # if needed
+./gradlew --no-daemon runQuickstart
+./gradlew --no-daemon runFullTraderExample
 ```
 
-## 4) Use the JAR in your own Gradle project
+## 5) Use the JAR in your own project
+
+Gradle (replace the version with the filename under `sdk/lib/`):
 
 ```kotlin
 dependencies {
-  implementation(files("path/to/sdk/lib/godark-0.1.0-all.jar"))
+  implementation(files("sdk/lib/godark-0.1.0-all.jar"))
 }
 ```
 
-Or plain `javac` / `java`:
+Or compile and run with `javac` / `java` (classes first, then JAR):
 
 ```bash
-javac -cp 'sdk/lib/*' -d out src/MyBot.java
+javac --release 17 -cp 'sdk/lib/*' -d out src/MyBot.java
 java -cp "out:sdk/lib/*" com.example.MyBot
 ```
+
+See `SDK_REFERENCE.md` (**Gradle integration** and **Standalone bot**) for a
+minimal `MyBot` class (environment variables, `try-with-resources`, place /
+cancel) verified against this JAR.

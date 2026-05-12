@@ -82,13 +82,13 @@ jobs:
           UPSTREAM_SRC: ${{ github.workspace }}/upstream
         run: bash scripts/package.sh ${{ steps.ver.outputs.bundle_name }}
 
-      - name: Recipient smoke (unzip + runPlaceOrder)
+      - name: Recipient smoke (unzip + runQuickstart)
         run: |
           mkdir -p /tmp/recip
           unzip -q ${{ steps.ver.outputs.bundle_name }}.zip -d /tmp/recip
           cd /tmp/recip/${{ steps.ver.outputs.bundle_name }}/examples
           chmod +x gradlew
-          ./gradlew --no-daemon runPlaceOrder
+          ./gradlew --no-daemon runQuickstart
 
       - uses: actions/upload-artifact@v4
         with:
@@ -134,5 +134,5 @@ jobs:
                ```bash
                unzip ${{ needs.build.outputs.bundle_name }}.zip
                cd ${{ needs.build.outputs.bundle_name }}
-               cd examples && chmod +x gradlew && ./gradlew runPlaceOrder
+               cd examples && chmod +x gradlew && ./gradlew runQuickstart
                ```

@@ -19,25 +19,27 @@ dependencies {
     implementation(files("../sdk/lib/godark-${godarkVersion}-all.jar"))
 }
 
-tasks.register<JavaExec>("runPlaceOrder") {
-    group = "examples"
-    description = "Build a sample place-order wire payload (offline)"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("exchange.godark.examples.PlaceOrder")
-}
+data class ExampleRun(val taskSuffix: String, val mainClass: String, val description: String)
 
-tasks.register<JavaExec>("runCancelOrder") {
-    group = "examples"
-    description = "Build a sample cancel-order wire payload (offline)"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("exchange.godark.examples.CancelOrder")
-}
+/** Runnable MM samples (Gradle {@code JavaExec} tasks). */
+val exampleRuns =
+    listOf(
+        ExampleRun(
+            "Quickstart",
+            "exchange.godark.examples.Quickstart",
+            "Minimal limit sell far from touch, then cancel"),
+        ExampleRun(
+            "FullTraderExample",
+            "exchange.godark.examples.FullTraderExample",
+            "Trader reference: callbacks, place / modify / cancel"))
 
-tasks.register<JavaExec>("runStreamOrderbook") {
-    group = "examples"
-    description = "Placeholder for market-data streaming (v0.1)"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("exchange.godark.examples.StreamOrderbook")
+exampleRuns.forEach { ex ->
+    tasks.register<JavaExec>("run${ex.taskSuffix}") {
+        group = "examples"
+        description = ex.description
+        classpath = sourceSets["main"].runtimeClasspath
+        mainClass.set(ex.mainClass)
+    }
 }
 
 tasks.named("build") {

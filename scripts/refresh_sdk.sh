@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Refresh sdk/lib/*.jar + sdk/shared/symbols.json from a local gdx-java-sdk checkout and record the
-# upstream commit in sdk/UPSTREAM_REF (mirrors gdx-python-sdk-examples/scripts/refresh_sdk.sh).
+# upstream commit in sdk/UPSTREAM_REF.
 #
 # Usage:
 #   ./scripts/refresh_sdk.sh /path/to/gdx-java-sdk

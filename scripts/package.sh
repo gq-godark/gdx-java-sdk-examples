@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MM bundle packager — JAR + examples zip, built strictly from the pinned upstream gdx-java-sdk
-# commit in sdk/UPSTREAM_REF (mirrors gdx-python-sdk-examples/scripts/package.sh).
+# commit in sdk/UPSTREAM_REF.
 #
 # Output layout:
 #   <DIST_NAME>/
@@ -37,8 +37,8 @@ if [[ -z "$PINNED_REF" ]]; then
   exit 1
 fi
 
-for required in bundle/README.md bundle/SDK_REFERENCE.md .env.example \
-  examples/build.gradle.kts examples/settings.gradle.kts examples/gradlew; do
+for required in bundle/README.md bundle/SDK_REFERENCE.md \
+  examples/.env.example examples/build.gradle.kts examples/settings.gradle.kts examples/gradlew; do
   if [[ ! -f "${REPO_ROOT}/${required}" ]]; then
     echo "error: required source file missing: ${required}" >&2
     exit 1
@@ -135,7 +135,7 @@ cp "${REPO_ROOT}/sdk/shared/symbols.json" "$DEST/sdk/shared/symbols.json"
 mkdir -p "$DEST/examples"
 cp -a "${REPO_ROOT}/examples/." "$DEST/examples/"
 rm -rf "$DEST/examples/build" "$DEST/examples/.gradle" 2>/dev/null || true
-cp "${REPO_ROOT}/.env.example" "$DEST/"
+cp "${REPO_ROOT}/examples/.env.example" "$DEST/.env.example"
 cp "${REPO_ROOT}/bundle/README.md" "$DEST/README.md"
 cp "${REPO_ROOT}/bundle/SDK_REFERENCE.md" "$DEST/SDK_REFERENCE.md"
 
@@ -158,7 +158,8 @@ if echo "$LISTING" | grep -E "${DIST_NAME}/scripts/" >/dev/null; then
 fi
 for required in \
   "${DIST_NAME}/sdk/lib/godark-.*\\.jar" \
-  "${DIST_NAME}/examples/src/main/java/exchange/godark/examples/PlaceOrder\\.java" \
+  "${DIST_NAME}/examples/src/main/java/exchange/godark/examples/Quickstart\\.java" \
+  "${DIST_NAME}/examples/src/main/java/exchange/godark/examples/FullTraderExample\\.java" \
   "${DIST_NAME}/README\\.md" \
   "${DIST_NAME}/SDK_REFERENCE\\.md" \
   "${DIST_NAME}/\\.env\\.example"; do

@@ -1,0 +1,175 @@
+name: Auto-bump SDK pin
+
+# Layer 2 listener. Triggered by gdx-java-sdk's notify-examples.yml dispatch
+# (event_type=gdx-sdk-changed) or manually via workflow_dispatch with an
+# explicit sdk_sha. Clones gdx-java-sdk at the dispatched SHA, runs
+# scripts/refresh_sdk.sh to rebuild + vendor sdk/lib/godark-*-all.jar plus
+# sdk/UPSTREAM_REF, and opens or refreshes a rolling PR (auto/bump-sdk-pin)
+# against main.
+#
+# Idempotent: re-running against the same SHA produces no drift on sdk/ and
+# exits clean without opening a PR. Each new SDK SHA force-pushes the rolling
+# branch, so we get one PR per merge cycle instead of one PR per upstream
+# commit.
+#
+# Two App tokens are minted (instead of one over-broad token):
+#   * local writer  — contents:write + pull-requests:write on this repo,
+#                     used by actions/checkout, the rolling branch push, and
+#                     gh pr view/create.
+#   * upstream read — contents:read on gdx-java-sdk + gdx-proto (gdx-proto is
+#                     a submodule of gdx-java-sdk and scripts/refresh_sdk.sh
+#                     runs `git submodule update --init --recursive` before
+#                     building shadowJar), used only for the upstream clone.
+
+on:
+  repository_dispatch:
+    types: [gdx-sdk-changed]
+  workflow_dispatch:
+    inputs:
+      sdk_sha:
+        description: gdx-java-sdk commit SHA to vendor (for manual testing)
+        required: true
+        type: string
+
+permissions:
+  # Default GITHUB_TOKEN: all writes go through the App tokens below.
+  contents: read
+
+concurrency:
+  # Serialize bumps so two near-simultaneous dispatches don't fight over the
+  # auto/bump-sdk-pin branch — the second run waits for the first to finish.
+  group: auto-bump-sdk-pin
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Refresh sdk/lib + open PR if drift
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint App token (local-repo writes)
+        id: app-token-local
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GDX_APP_ID }}
+          private-key: ${{ secrets.GDX_APP_PRIVATE_KEY }}
+          owner: gq-godark
+          repositories: gdx-java-sdk-examples
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Mint App token (upstream + submodule read)
+        id: app-token-upstream
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GDX_APP_ID }}
+          private-key: ${{ secrets.GDX_APP_PRIVATE_KEY }}
+          owner: gq-godark
+          repositories: gdx-java-sdk,gdx-proto
+          permission-contents: read
+
+      - name: Checkout examples (this repo)
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.app-token-local.outputs.token }}
+
+      - name: Resolve SDK SHA
+        id: sha
+        env:
+          DISPATCH_SHA: ${{ github.event.client_payload.sdk_sha }}
+          INPUT_SHA: ${{ inputs.sdk_sha }}
+        run: |
+          SHA="${DISPATCH_SHA:-$INPUT_SHA}"
+          if [ -z "$SHA" ]; then
+            echo "::error::No sdk_sha in dispatch payload and no workflow_dispatch input."
+            exit 1
+          fi
+          echo "full=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "short=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "Vendoring gdx-java-sdk@${SHA}"
+
+      - name: Checkout upstream gdx-java-sdk at dispatched SHA (with proto submodule)
+        uses: actions/checkout@v5
+        with:
+          repository: gq-godark/gdx-java-sdk
+          ref: ${{ steps.sha.outputs.full }}
+          path: upstream
+          token: ${{ steps.app-token-upstream.outputs.token }}
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Set up JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Refresh vendored artifacts
+        env:
+          UPSTREAM_SRC: ${{ github.workspace }}/upstream
+        run: bash scripts/refresh_sdk.sh "${UPSTREAM_SRC}"
+
+      - name: Detect drift on sdk/
+        id: drift
+        run: |
+          if git diff --quiet -- sdk/; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "No changes after refresh — already pinned at this SHA. Exiting clean."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "Drift detected on sdk/:"
+            git diff --stat -- sdk/
+          fi
+
+      - name: Configure bot git identity
+        if: steps.drift.outputs.drift == 'true'
+        run: |
+          git config user.name "gdx-app[bot]"
+          git config user.email "gdx-app[bot]@users.noreply.github.com"
+
+      - name: Open or refresh rolling PR
+        if: steps.drift.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token-local.outputs.token }}
+          BRANCH: auto/bump-sdk-pin
+          SDK_SHORT: ${{ steps.sha.outputs.short }}
+          SDK_FULL: ${{ steps.sha.outputs.full }}
+          SDK_BRANCH: ${{ github.event.client_payload.sdk_branch }}
+        run: |
+          set -euo pipefail
+          git checkout -B "$BRANCH"
+          git add sdk/
+          git commit -m "chore(sdk): vendor godark jar from gdx-java-sdk@${SDK_SHORT}
+
+          Auto-generated by .github/workflows/auto-bump-sdk-pin.yml in
+          response to a gdx-sdk-changed dispatch. Refreshes
+          sdk/lib/godark-*-all.jar and sdk/UPSTREAM_REF to point at
+          gdx-java-sdk@${SDK_FULL}.
+
+          Merging this PR to main fires the existing release.yml, which
+          rebuilds the bundle, runs the parity + smoke checks, and tags a
+          new GitHub Release ZIP."
+
+          git push --force origin "$BRANCH"
+
+          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            echo "Existing PR force-pushed; no new PR opened."
+            gh pr view "$BRANCH" --json url --jq .url
+          else
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "auto: bump vendored SDK to ${SDK_SHORT}" \
+              --body "Triggered by \`gdx-java-sdk@${SDK_FULL}\` on branch \`${SDK_BRANCH:-main}\`.
+
+          Refreshes \`sdk/lib/godark-*-all.jar\` and \`sdk/UPSTREAM_REF\` to vendor the latest SDK.
+
+          - **Source repo:** \`gq-godark/gdx-java-sdk\`
+          - **Source SHA:** \`${SDK_FULL}\`
+          - **Workflow:** [.github/workflows/auto-bump-sdk-pin.yml](https://github.com/gq-godark/gdx-java-sdk-examples/blob/main/.github/workflows/auto-bump-sdk-pin.yml)
+
+          ### Review checklist
+          - [ ] \`sdk/UPSTREAM_REF\` matches the source SHA above.
+          - [ ] \`sdk/lib/godark-*-all.jar\` size delta vs. previous is reasonable (large swings warrant a glance at the upstream commit)." \
+              --label automation \
+              --label sdk-bump
+          fi

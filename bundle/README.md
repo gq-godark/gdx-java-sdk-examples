@@ -92,6 +92,10 @@ public class MyBot {
   public static void main(String[] args) throws GodarkException {
     String kid = System.getenv("GODARK_API_KEY_ID");
     String sec = System.getenv("GODARK_API_SECRET");
+    if (kid == null || sec == null) {
+      System.err.println("Set GODARK_API_KEY_ID and GODARK_API_SECRET");
+      System.exit(1);
+    }
     String base =
         Optional.ofNullable(System.getenv("GODARK_EDGE_URL"))
             .filter(s -> !s.isBlank())

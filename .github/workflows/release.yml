@@ -110,7 +110,7 @@ jobs:
             exit 1
           fi
           version="v${base}-build.${{ github.run_number }}"
-          bundle_name="gdx-java-sdk-${version}"
+          bundle_name="godark-java-sdk-${version}"
           echo "version=${version}"         >> "$GITHUB_OUTPUT"
           echo "bundle_name=${bundle_name}" >> "$GITHUB_OUTPUT"
           echo "Building ${bundle_name}.zip (godark==${base} from upstream pin ${{ steps.pin.outputs.ref }})"
@@ -182,8 +182,8 @@ jobs:
           body: |
             **Automated release** built from commit `${{ github.sha }}`.
 
-            Uber-JAR built from upstream `gq-godark/gdx-java-sdk` at pinned ref
-            `${{ needs.build.outputs.pinned_ref }}`.
+            Prebuilt `godark-*-all.jar` uber-JAR and minimal Gradle examples for
+            the GoDark Java SDK.
 
             ## Install
 

@@ -43,9 +43,10 @@ public class Bot {
 
 ## Configuration
 
-The **bundled Gradle examples** read credentials from `.env` / `.env.example`
-(merged by the examples harness under `exchange.godark.examples.support.Dotenv`);
-they do **not** read `System.getenv` for those keys.
+The **bundled Gradle examples** read credentials from the bundle-root
+`.env` / `.env.example` (and optionally `examples/.env` to override), merged by
+`exchange.godark.examples.support.Dotenv`; they do **not** read
+`System.getenv` for those keys.
 
 For your **own JVM process** (a bot, a service), you normally pass credentials
 from `System.getenv`, flags, or your config layer. Alternatively, if you omit
@@ -60,7 +61,8 @@ Typical variables:
 - `GODARK_API_SECRET` (required)
 - `GODARK_EDGE_URL` (optional host origin; client appends `/ws/v1`)
 
-Use `.env.example` as the template when using the file-based examples layout.
+Use the bundle-root `.env.example` as the template (copy to `.env`, or to
+`examples/.env` when running Gradle from `examples/`).
 
 ## GodarkClient API
 
@@ -218,7 +220,7 @@ patterns.
 
 ## Gradle integration (your own bot)
 
-Add the vendored uber-JAR to your Gradle module (path is relative to that
+Add the JAR to your Gradle module (path is relative to that
 module's `build.gradle.kts`; adjust if the JAR lives elsewhere):
 
 ```kotlin
@@ -227,5 +229,4 @@ dependencies {
 }
 ```
 
-Match the filename under `sdk/lib/` to the version shipped in this bundle (see
-`sdk/UPSTREAM_REF` and the JAR name on disk).
+Match the filename under `sdk/lib/` to the version shipped in this bundle.

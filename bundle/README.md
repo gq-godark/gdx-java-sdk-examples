@@ -1,18 +1,17 @@
 # GoDark Java SDK
 
-This package provides the GoDark Java SDK (prebuilt **uber-JAR**
-`godark-*-all.jar`) and minimal examples for encrypted darkpool trading.
+This package provides the GoDark Java SDK and minimal examples for encrypted
+darkpool trading.
 
 Supported order types in this distribution: `MARKET`, `LIMIT`.
 
 ## Package contents
 
-- `sdk/lib/` — prebuilt `godark-*-all.jar` for offline use (no private Maven registry required)
-- `sdk/UPSTREAM_REF` — exact upstream git pin used to build the JAR
+- `sdk/lib/` — `godark-*-all.jar`
 - `sdk/shared/symbols.json` — symbol map snapshot
 - `examples/` — Gradle project (`./gradlew runQuickstart`, `./gradlew runFullTraderExample`)
 - `SDK_REFERENCE.md` — API reference
-- `.env.example` — environment template (copy to `.env` at the bundle root or under `examples/`)
+- `.env.example` — environment template at the bundle root (copy to `.env` here, or to `examples/.env` to override)
 
 ## 1) Prerequisites
 
@@ -24,8 +23,7 @@ sudo apt-get update
 sudo apt-get install -y openjdk-17-jdk zip unzip
 ```
 
-The Gradle wrapper (`./gradlew`) bootstraps its own Gradle distribution; you
-do **not** need a system Gradle install.
+The Gradle wrapper (`./gradlew`) bootstraps Gradle for the examples project.
 
 ## 2) Create testnet credentials
 
@@ -37,14 +35,14 @@ do **not** need a system Gradle install.
 
 ## 3) Configure environment
 
-Copy `.env.example` to `.env` and set:
+Copy the bundle-root `.env.example` to `.env` and set:
 
 - `GODARK_API_KEY_ID`
 - `GODARK_API_SECRET`
 
 ```bash
 cp .env.example .env
-# optional: cp .env.example examples/.env
+# optional override when running from examples/: cp ../.env examples/.env
 ```
 
 Optional: `GODARK_EDGE_URL` (defaults to `wss://api.godark-dex.com`),
@@ -66,13 +64,9 @@ Or run the full trader example:
 ./gradlew --no-daemon runFullTraderExample
 ```
 
-The vendored uber-JAR is referenced via `implementation(files(...))` in
-`examples/build.gradle.kts`, so no Maven repository configuration is required.
-
 ## Gradle integration (your own bot)
 
-Add the vendored uber-JAR to your Gradle module (replace the version with the
-filename under `sdk/lib/`):
+Add the JAR to your Gradle module (use the filename under `sdk/lib/`):
 
 ```kotlin
 dependencies {

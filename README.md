@@ -50,8 +50,7 @@ Before running the examples, complete this setup flow:
 Copy the template and fill in your API credentials:
 
 ```bash
-cp .env.example .env
-# or: cp examples/.env.example examples/.env
+cp examples/.env.example examples/.env
 ```
 
 Required:

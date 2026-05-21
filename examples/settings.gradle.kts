@@ -1,1 +1,1 @@
-rootProject.name = "gdx-java-sdk-examples-runner"
+rootProject.name = "godark-examples"

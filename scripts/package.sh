@@ -8,13 +8,12 @@
 #   ├── README.md
 #   ├── SDK_REFERENCE.md
 #   ├── sdk/
-#   │   ├── UPSTREAM_REF
 #   │   ├── lib/godark-*-all.jar
 #   │   └── shared/symbols.json
 #   └── examples/   (Gradle runner + sample mains)
 #
 # Usage:
-#   bash scripts/package.sh
+#   bash scripts/package.sh                              # default: godark-java-sdk.zip
 #   bash scripts/package.sh my-release-name
 #   UPSTREAM_SRC=/path/to/gdx-java-sdk bash scripts/package.sh
 set -euo pipefail
@@ -23,7 +22,7 @@ UPSTREAM_REPO="gq-godark/gdx-java-sdk"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DIST_NAME="${1:-gdx-java-sdk-examples-bundle}"
+DIST_NAME="${1:-godark-java-sdk}"
 
 cd "$REPO_ROOT"
 
@@ -147,11 +146,11 @@ mkdir -p "$DEST/sdk/lib" "$DEST/sdk/shared" "$DEST/examples"
 
 echo "Staging distribution at $DEST ..."
 cp "$BUILT_JAR" "$DEST/sdk/lib/"
-cp "${REPO_ROOT}/sdk/UPSTREAM_REF" "$DEST/sdk/UPSTREAM_REF"
 cp "${REPO_ROOT}/sdk/shared/symbols.json" "$DEST/sdk/shared/symbols.json"
 mkdir -p "$DEST/examples"
 cp -a "${REPO_ROOT}/examples/." "$DEST/examples/"
 rm -rf "$DEST/examples/build" "$DEST/examples/.gradle" 2>/dev/null || true
+rm -f "$DEST/examples/.env" "$DEST/examples/.env.example"
 cp "${REPO_ROOT}/examples/.env.example" "$DEST/.env.example"
 cp "${REPO_ROOT}/bundle/README.md" "$DEST/README.md"
 cp "${REPO_ROOT}/bundle/SDK_REFERENCE.md" "$DEST/SDK_REFERENCE.md"
@@ -173,6 +172,18 @@ if echo "$LISTING" | grep -E "${DIST_NAME}/scripts/" >/dev/null; then
   echo "error: bundle contains scripts/ — contract violated" >&2
   exit 1
 fi
+if echo "$LISTING" | grep -E "${DIST_NAME}/examples/\\.env$" >/dev/null; then
+  echo "error: bundle contains examples/.env — ship .env.example only" >&2
+  exit 1
+fi
+if echo "$LISTING" | grep -E "${DIST_NAME}/examples/\\.env\\.example$" >/dev/null; then
+  echo "error: bundle contains examples/.env.example — ship one .env.example at bundle root only" >&2
+  exit 1
+fi
+if echo "$LISTING" | grep -E "${DIST_NAME}/(sdk/UPSTREAM_REF|/\\.env$)" >/dev/null; then
+  echo "error: bundle contains maintainer-only metadata or .env" >&2
+  exit 1
+fi
 for required in \
   "${DIST_NAME}/sdk/lib/godark-.*\\.jar" \
   "${DIST_NAME}/examples/src/main/java/exchange/godark/examples/Quickstart\\.java" \
@@ -188,4 +199,15 @@ done
 
 echo
 echo "JAR + examples bundle assertion: PASSED"
+
+# Must NOT leak internal repo names or maintainer markers into the archive.
+if unzip -p "$ARCHIVE" 2>/dev/null | strings | grep -qiE \
+  'gdx-java-sdk|UPSTREAM_REF|refresh_sdk|package\.sh|\bvendored\b'; then
+  echo "error: bundle contains internal repo references or maintainer markers" >&2
+  unzip -p "$ARCHIVE" 2>/dev/null | strings | grep -iE \
+    'gdx-java-sdk|UPSTREAM_REF|refresh_sdk|package\.sh|\bvendored\b' | head -20 >&2 || true
+  exit 1
+fi
+
+echo "leak guard: PASSED"
 echo "built from upstream: ${UPSTREAM_REPO}@${PINNED_REF} (${upstream_head_sha})"

@@ -1,11 +1,9 @@
 # GoDark Java SDK Reference
 
-This reference describes the API and workflow used by the market-maker-facing
-distribution in this repository.
-
-The MM examples use WebSocket encrypted trading via `godark.GodarkClient`.
-REST and standalone market-data clients ship in the same JAR but are outside
-the bundled examples in this distribution.
+This reference describes the API surface used by the bundled examples
+shipped in this distribution. The examples use WebSocket encrypted trading
+via `godark.GodarkClient`. REST and standalone market-data clients ship in
+the same JAR but are outside the bundled examples in this distribution.
 
 Order placement support in this MM distribution is limited to `MARKET` and
 `LIMIT`.
@@ -45,16 +43,17 @@ public class Bot {
 
 ## Configuration
 
-The **bundled Gradle examples** read credentials from `.env` / `.env.example`
-(merged by the examples harness under `exchange.godark.examples.support.Dotenv`);
-they do **not** read `System.getenv` for those keys.
+The **bundled Gradle examples** read credentials from the bundle-root
+`.env` / `.env.example` (and optionally `examples/.env` to override), merged by
+`exchange.godark.examples.support.Dotenv`; they do **not** read
+`System.getenv` for those keys.
 
 For your **own JVM process** (a bot, a service), you normally pass credentials
 from `System.getenv`, flags, or your config layer. Alternatively, if you omit
 `apiKeyId` / `apiSecret` / `apiKey` on `GodarkClient.Builder`, the SDK uses
 `godark.EnvFiles`: it reads the **process environment first**, then a single
 `.env` file in the JVM **working directory** (`user.dir`) — not the same
-multi-path merge as the bundled examples’ `Dotenv`.
+multi-path merge as the bundled examples' `Dotenv`.
 
 Typical variables:
 
@@ -62,7 +61,8 @@ Typical variables:
 - `GODARK_API_SECRET` (required)
 - `GODARK_EDGE_URL` (optional host origin; client appends `/ws/v1`)
 
-Use `.env.example` as the template when using the file-based examples layout.
+Use the bundle-root `.env.example` as the template (copy to `.env`, or to
+`examples/.env` when running Gradle from `examples/`).
 
 ## GodarkClient API
 
@@ -211,7 +211,7 @@ still surface through `onError`):
 See the bundled `Quickstart` / `FullTraderExample` sources for try/catch
 patterns.
 
-## Example entrypoints in this distribution
+## Example files in this distribution
 
 | Gradle task | Purpose |
 |-------------|---------|
@@ -220,8 +220,8 @@ patterns.
 
 ## Gradle integration (your own bot)
 
-Add the vendored uber-JAR to your Gradle module (path is relative to that
-module’s `build.gradle.kts`; adjust if the JAR lives elsewhere):
+Add the JAR to your Gradle module (path is relative to that
+module's `build.gradle.kts`; adjust if the JAR lives elsewhere):
 
 ```kotlin
 dependencies {
@@ -229,64 +229,4 @@ dependencies {
 }
 ```
 
-Match the filename under `sdk/lib/` to the version shipped in this bundle (see
-`sdk/UPSTREAM_REF` and the JAR name on disk).
-
-## Standalone bot (`java` / `javac`)
-
-Compile and run without Gradle: put `godark-*-all.jar` on the classpath together
-with your compiled classes.
-
-```bash
-javac --release 17 -cp 'sdk/lib/*' -d out src/MyBot.java
-GODARK_API_KEY_ID=... GODARK_API_SECRET=... java -cp "out:sdk/lib/*" com.example.MyBot
-```
-
-Minimal bot (same flow as the bundled quickstart: connect, far limit sell,
-cancel). **Verified** against the public `GodarkClient` API and the vendored
-JAR in this distribution:
-
-```java
-import godark.GodarkClient;
-import godark.GodarkException;
-import godark.Types;
-import java.util.Optional;
-
-public class MyBot {
-
-  public static void main(String[] args) throws GodarkException {
-    String kid = System.getenv("GODARK_API_KEY_ID");
-    String sec = System.getenv("GODARK_API_SECRET");
-    if (kid == null || kid.isBlank() || sec == null || sec.isBlank()) {
-      System.err.println("Set GODARK_API_KEY_ID and GODARK_API_SECRET");
-      System.exit(1);
-      return;
-    }
-    String base =
-        Optional.ofNullable(System.getenv("GODARK_EDGE_URL"))
-            .filter(s -> !s.isBlank())
-            .orElse("wss://api.godark-dex.com");
-
-    try (GodarkClient client =
-        GodarkClient.builder().baseUrl(base).apiKeyId(kid).apiSecret(sec).build()) {
-      client.connect();
-      Types.OrderAck ack =
-          client.placeOrder(
-              "BTC-USDC-PERP",
-              "SELL",
-              "LIMIT",
-              0.01,
-              999_999.0,
-              "GTC",
-              false,
-              null,
-              null);
-      client.cancelOrder(ack.orderId(), "BTC-USDC-PERP");
-    }
-  }
-}
-```
-
-Use `try-with-resources` so `close()` / `disconnect()` runs even if `connect()`
-or trading throws. Handle `GodarkException` in production (log, backoff, or
-surface `OrderRejectedException#errorCode()`).
+Match the filename under `sdk/lib/` to the version shipped in this bundle.

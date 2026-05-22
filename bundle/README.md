@@ -1,18 +1,17 @@
 # GoDark Java SDK
 
-This package provides the GoDark Java SDK (prebuilt **uber-JAR** `godark-*-all.jar`) and minimal
-examples for encrypted darkpool trading.
+This package provides the GoDark Java SDK and minimal examples for encrypted
+darkpool trading.
 
 Supported order types in this distribution: `MARKET`, `LIMIT`.
 
 ## Package contents
 
-- `sdk/lib/` — prebuilt `godark-*-all.jar` for offline use (no private Maven registry required)
-- `sdk/UPSTREAM_REF` — exact upstream git pin used to build the JAR
+- `sdk/lib/` — `godark-*-all.jar`
 - `sdk/shared/symbols.json` — symbol map snapshot
 - `examples/` — Gradle project (`./gradlew runQuickstart`, `./gradlew runFullTraderExample`)
-- `SDK_REFERENCE.md` — short API orientation
-- `.env.example` — environment template (copy to `.env` at package root or under `examples/`)
+- `SDK_REFERENCE.md` — API reference
+- `.env.example` — environment template at the bundle root (copy to `.env` here, or to `examples/.env` to override)
 
 ## 1) Prerequisites
 
@@ -24,41 +23,50 @@ sudo apt-get update
 sudo apt-get install -y openjdk-17-jdk zip unzip
 ```
 
+The Gradle wrapper (`./gradlew`) bootstraps Gradle for the examples project.
+
 ## 2) Create testnet credentials
 
-1. Open frontend: `https://app.godark-dex.com`
-2. Create an account using email.
-3. Fund the account using faucet: `https://faucet.godark-dex.com`
-4. Go to **Settings → API Key Management** and create an API key.
+1. Open the testnet frontend: `https://app.godark-dex.com`
+2. Create an account using email sign-up.
+3. Fund your testnet account using the faucet: `https://faucet.godark-dex.com`
+4. In the frontend, go to **Settings → API Key Management** and click **Create API Key**.
+5. Use the generated key ID and secret for your local `.env`.
 
 ## 3) Configure environment
 
-Copy `.env.example` to `.env` and set:
+Copy the bundle-root `.env.example` to `.env` and set:
 
 - `GODARK_API_KEY_ID`
 - `GODARK_API_SECRET`
 
 ```bash
 cp .env.example .env
-# optional: cp .env.example examples/.env
+# optional override when running from examples/: cp ../.env examples/.env
 ```
 
-Optional: `GODARK_EDGE_URL` (defaults to `wss://api.godark-dex.com`), `GODARK_USER_UUID`, `GODARK_TLS_SKIP_VERIFY` for local edges.
+Optional: `GODARK_EDGE_URL` (defaults to `wss://api.godark-dex.com`),
+`GODARK_USER_UUID`, `GODARK_TLS_SKIP_VERIFY` for local edges.
 
-## 4) Run examples
+## 4) Run quickstart
 
-From the unzipped root:
+From the unzipped bundle root:
 
 ```bash
 cd examples
-chmod +x gradlew   # if needed
+chmod +x gradlew    # if needed (e.g. unzip from Windows lost the execute bit)
 ./gradlew --no-daemon runQuickstart
+```
+
+Or run the full trader example:
+
+```bash
 ./gradlew --no-daemon runFullTraderExample
 ```
 
-## 5) Use the JAR in your own project
+## Gradle integration (your own bot)
 
-Gradle (replace the version with the filename under `sdk/lib/`):
+Add the JAR to your Gradle module (use the filename under `sdk/lib/`):
 
 ```kotlin
 dependencies {
@@ -66,13 +74,45 @@ dependencies {
 }
 ```
 
-Or compile and run with `javac` / `java` (classes first, then JAR):
+Then in `MyBot.java`:
 
-```bash
-javac --release 17 -cp 'sdk/lib/*' -d out src/MyBot.java
-java -cp "out:sdk/lib/*" com.example.MyBot
+```java
+import godark.GodarkClient;
+import godark.GodarkException;
+import godark.Types;
+import java.util.Optional;
+
+public class MyBot {
+  public static void main(String[] args) throws GodarkException {
+    String kid = System.getenv("GODARK_API_KEY_ID");
+    String sec = System.getenv("GODARK_API_SECRET");
+    if (kid == null || sec == null) {
+      System.err.println("Set GODARK_API_KEY_ID and GODARK_API_SECRET");
+      System.exit(1);
+    }
+    String base =
+        Optional.ofNullable(System.getenv("GODARK_EDGE_URL"))
+            .filter(s -> !s.isBlank())
+            .orElse("wss://api.godark-dex.com");
+
+    try (GodarkClient client =
+        GodarkClient.builder().baseUrl(base).apiKeyId(kid).apiSecret(sec).build()) {
+      client.connect();
+      Types.OrderAck ack =
+          client.placeOrder(
+              "BTC-USDC-PERP",
+              "SELL",
+              "LIMIT",
+              0.01,
+              999_999.0,
+              "GTC",
+              false,
+              null,
+              null);
+      client.cancelOrder(ack.orderId(), "BTC-USDC-PERP");
+    }
+  }
+}
 ```
 
-See `SDK_REFERENCE.md` (**Gradle integration** and **Standalone bot**) for a
-minimal `MyBot` class (environment variables, `try-with-resources`, place /
-cancel) verified against this JAR.
+See `SDK_REFERENCE.md` for the full client API.

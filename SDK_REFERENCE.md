@@ -30,6 +30,7 @@ public class Bot {
             .baseUrl("wss://api.godark-dex.com")
             .apiKeyId("gdk_...")
             .apiSecret("...")
+            .passphrase("...")
             .build()) {
       client.connect();
       Types.OrderAck ack =
@@ -66,6 +67,7 @@ Typical variables:
 
 - `GODARK_API_KEY_ID` (required for id/secret auth)
 - `GODARK_API_SECRET` (required)
+- `GODARK_PASSPHRASE` (required for API key-pair auth)
 - `GODARK_EDGE_URL` (optional host origin; client appends `/ws/v1`)
 
 Use `.env.example` as the template when using the file-based examples layout.
@@ -336,7 +338,7 @@ with your compiled classes.
 
 ```bash
 javac --release 17 -cp 'sdk/lib/*' -d out src/MyBot.java
-GODARK_API_KEY_ID=... GODARK_API_SECRET=... java -cp "out:sdk/lib/*" com.example.MyBot
+GODARK_API_KEY_ID=... GODARK_API_SECRET=... GODARK_PASSPHRASE=... java -cp "out:sdk/lib/*" com.example.MyBot
 ```
 
 Minimal bot (same flow as the bundled quickstart: connect, far limit sell,
@@ -354,8 +356,14 @@ public class MyBot {
   public static void main(String[] args) throws GodarkException {
     String kid = System.getenv("GODARK_API_KEY_ID");
     String sec = System.getenv("GODARK_API_SECRET");
-    if (kid == null || kid.isBlank() || sec == null || sec.isBlank()) {
-      System.err.println("Set GODARK_API_KEY_ID and GODARK_API_SECRET");
+    String pass = System.getenv("GODARK_PASSPHRASE");
+    if (kid == null
+        || kid.isBlank()
+        || sec == null
+        || sec.isBlank()
+        || pass == null
+        || pass.isBlank()) {
+      System.err.println("Set GODARK_API_KEY_ID, GODARK_API_SECRET and GODARK_PASSPHRASE");
       System.exit(1);
       return;
     }
@@ -365,7 +373,7 @@ public class MyBot {
             .orElse("wss://api.godark-dex.com");
 
     try (GodarkClient client =
-        GodarkClient.builder().baseUrl(base).apiKeyId(kid).apiSecret(sec).build()) {
+        GodarkClient.builder().baseUrl(base).apiKeyId(kid).apiSecret(sec).passphrase(pass).build()) {
       client.connect();
       Types.OrderAck ack =
           client.placeOrder(

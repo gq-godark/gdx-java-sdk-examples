@@ -33,11 +33,15 @@ public final class FullTraderExample {
 
     String apiKeyId = ExamplesEnv.first("GODARK_API_KEY_ID", "GDX_API_KEY_ID");
     String apiSecret = ExamplesEnv.first("GODARK_API_SECRET", "GDX_API_SECRET");
+    String passphrase = ExamplesEnv.first("GODARK_PASSPHRASE", "GDX_PASSPHRASE");
     if (apiKeyId == null
         || apiKeyId.isBlank()
         || apiSecret == null
-        || apiSecret.isBlank()) {
-      System.err.println("Missing GODARK_API_KEY_ID / GODARK_API_SECRET (.env at repo root).");
+        || apiSecret.isBlank()
+        || passphrase == null
+        || passphrase.isBlank()) {
+      System.err.println(
+          "Missing GODARK_API_KEY_ID / GODARK_API_SECRET / GODARK_PASSPHRASE (.env at repo root).");
       System.exit(1);
       return;
     }
@@ -50,7 +54,11 @@ public final class FullTraderExample {
       String rest = GodarkRestClient.resolveRestBaseUrl(
           ExamplesEnv.first("GODARK_REST_URL", "GDX_REST_URL"));
       GodarkRestClient.Builder rb =
-          GodarkRestClient.builder().apiKeyId(apiKeyId).apiSecret(apiSecret).restBaseUrl(rest);
+          GodarkRestClient.builder()
+              .apiKeyId(apiKeyId)
+              .apiSecret(apiSecret)
+              .passphrase(passphrase)
+              .restBaseUrl(rest);
       if (rest.startsWith("https://")
           && ExamplesEnv.truthy("GODARK_TLS_SKIP_VERIFY", "GDX_TLS_SKIP_VERIFY")) {
         rb.sslContext(InsecureSsl.context());
@@ -87,6 +95,7 @@ public final class FullTraderExample {
             .baseUrl(base)
             .apiKeyId(apiKeyId)
             .apiSecret(apiSecret)
+            .passphrase(passphrase)
             .transport(transport);
     String uidCfg = ExamplesEnv.first("GODARK_USER_UUID", "GDX_USER_UUID");
     if (uidCfg != null && !uidCfg.isBlank()) {

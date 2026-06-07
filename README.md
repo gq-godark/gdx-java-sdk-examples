@@ -57,6 +57,7 @@ Required:
 
 - `GODARK_API_KEY_ID`
 - `GODARK_API_SECRET`
+- `GODARK_PASSPHRASE` — required for API key-pair auth.
 
 Optional:
 
@@ -79,7 +80,7 @@ example project, and `.env.example` at the bundle root.
 unzip gdx-java-sdk-*.zip
 cd gdx-java-sdk-*/
 cp .env.example .env
-# fill in GODARK_API_KEY_ID, GODARK_API_SECRET
+# fill in GODARK_API_KEY_ID, GODARK_API_SECRET, GODARK_PASSPHRASE
 
 cd examples
 chmod +x gradlew    # if needed

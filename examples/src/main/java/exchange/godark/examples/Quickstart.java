@@ -17,12 +17,15 @@ public final class Quickstart {
   public static void main(String[] args) throws Exception {
     String apiKeyId = ExamplesEnv.first("GODARK_API_KEY_ID", "GDX_API_KEY_ID");
     String apiSecret = ExamplesEnv.first("GODARK_API_SECRET", "GDX_API_SECRET");
+    String passphrase = ExamplesEnv.first("GODARK_PASSPHRASE", "GDX_PASSPHRASE");
     if (apiKeyId == null
         || apiKeyId.isBlank()
         || apiSecret == null
-        || apiSecret.isBlank()) {
+        || apiSecret.isBlank()
+        || passphrase == null
+        || passphrase.isBlank()) {
       System.err.println(
-          "Missing credentials: set GODARK_API_KEY_ID and GODARK_API_SECRET "
+          "Missing credentials: set GODARK_API_KEY_ID, GODARK_API_SECRET and GODARK_PASSPHRASE "
               + "(e.g. in a .env file at the repo root or under examples/).");
       System.exit(1);
       return;
@@ -31,7 +34,8 @@ public final class Quickstart {
     String base =
         ExamplesEnv.firstOrDefault("wss://api.godark-dex.com", "GODARK_EDGE_URL", "GDX_EDGE_URL");
 
-    GodarkClient.Builder b = GodarkClient.builder().baseUrl(base).apiKeyId(apiKeyId).apiSecret(apiSecret);
+    GodarkClient.Builder b =
+        GodarkClient.builder().baseUrl(base).apiKeyId(apiKeyId).apiSecret(apiSecret).passphrase(passphrase);
     String uid = ExamplesEnv.first("GODARK_USER_UUID", "GDX_USER_UUID");
     if (uid != null && !uid.isBlank()) {
       b.userUuid(uid);

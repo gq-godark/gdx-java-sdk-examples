@@ -9,8 +9,10 @@ import godark.TransportConfig;
 import godark.Types;
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -286,6 +288,59 @@ public final class FullTraderExample {
 
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after SELL/CANCEL", orderEvents);
+
+    // --- Bulk quote (mass quote) ---
+    // Place a whole ladder of resting quotes in one batched request. Passing
+    // null (or true) for postOnly keeps post-only behaviour: a leg that would
+    // cross is rejected as "failed" so the batch fuses into a single MPC round.
+    // Pass Boolean.FALSE for the relaxed path, where a crossing leg takes
+    // liquidity up to its limit and rests the remainder (the number of taker
+    // fills is reported per leg as fillCount).
+    System.out.println("Mass-quoting a 3-level BUY ladder (post-only)...");
+    List<Types.MassQuoteLegInput> ladder =
+        List.of(
+            new Types.MassQuoteLegInput("BUY", 66_000.0, 0.02),
+            new Types.MassQuoteLegInput("BUY", 65_500.0, 0.02),
+            new Types.MassQuoteLegInput("BUY", 65_000.0, 0.02));
+    List<Long> restingIds = new ArrayList<>();
+    try {
+      Types.MassQuoteAck mq = client.massQuote(SYMBOL, ladder, 1, null);
+      System.out.printf(
+          "Mass quote: success=%s sequence=%s legs=%d%n",
+          mq.success(), mq.sequence(), mq.results().size());
+      for (Types.MassQuoteLegResult r : mq.results()) {
+        System.out.printf(
+            "  leg %d: status=%s new_order_id=%s fills=%d err=%s%n",
+            r.legIndex(), r.status(), r.newOrderId(), r.fillCount(), r.errorCode());
+        if ("open".equals(r.status()) && r.newOrderId() != null && !r.newOrderId().isBlank()) {
+          try {
+            restingIds.add(Long.parseLong(r.newOrderId()));
+          } catch (NumberFormatException ignore) {
+            // non-numeric id; skip cleanup for this leg
+          }
+        }
+      }
+    } catch (GodarkException e) {
+      System.err.println("Mass quote rejected: " + e.getMessage());
+    }
+
+    TimeUnit.SECONDS.sleep(1);
+    drainOrders("after MASS QUOTE", orderEvents);
+
+    if (!restingIds.isEmpty()) {
+      System.out.printf("Batch-cancelling %d ladder orders (cleanup)...%n", restingIds.size());
+      try {
+        Types.BatchCancelAck bc = client.batchCancel(SYMBOL, restingIds);
+        for (Types.BatchCancelLegResult r : bc.results()) {
+          System.out.printf(
+              "  cancel id=%s: cancelled=%s err=%s%n", r.orderId(), r.cancelled(), r.errorCode());
+        }
+      } catch (GodarkException e) {
+        System.err.println("Batch cancel rejected: " + e.getMessage());
+      }
+      TimeUnit.MILLISECONDS.sleep(500);
+      drainOrders("after BATCH CANCEL", orderEvents);
+    }
 
     System.out.println("Cancelling original BUY (cleanup)...");
     try {

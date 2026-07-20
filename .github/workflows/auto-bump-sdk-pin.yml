@@ -157,7 +157,7 @@ jobs:
           # next merge cycle.
           if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')" ]; then
             echo "Existing open PR force-pushed; no new PR opened."
-            gh pr view "$BRANCH" --json url --jq .url
+            gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url'
           else
             gh pr create \
               --base main \

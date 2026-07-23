@@ -59,6 +59,8 @@ Typical variables:
 
 - `GODARK_API_KEY_ID` (required for id/secret auth)
 - `GODARK_API_SECRET` (required)
+- `GODARK_PASSPHRASE` (required for API key-pair auth)
+- `GDX_NOISE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`
 - `GODARK_EDGE_URL` (optional host origin; client appends `/ws/v1`)
 
 Use the bundle-root `.env.example` as the template (copy to `.env`, or to
@@ -200,7 +202,7 @@ Checked failures extend **`godark.GodarkException`** (and runtime problems may
 still surface through `onError`):
 
 - `AuthenticationException` — auth or handshake failure
-- `SessionException` — ECDH / session setup or encryption session errors
+- `SessionException` — Noise XK handshake or encryption session errors
 - `OrderRejectedException` — order rejected by the edge; use `errorCode()` for
   symbolic reasons (for example `PRICE_DEVIATION_TOO_LARGE`,
   `MARGIN_INSUFFICIENT`)

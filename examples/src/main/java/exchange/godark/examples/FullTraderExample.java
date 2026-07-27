@@ -4,7 +4,6 @@ import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
 import godark.GodarkClient;
 import godark.GodarkException;
-import godark.GodarkRestClient;
 import godark.TransportConfig;
 import godark.Types;
 import java.time.Duration;
@@ -49,29 +48,6 @@ public final class FullTraderExample {
     String base =
         ExamplesEnv.firstOrDefault("wss://api.godark-dex.com", "GODARK_EDGE_URL", "GDX_EDGE_URL");
     System.out.println("Endpoint: " + base);
-
-    {
-      String rest = GodarkRestClient.resolveRestBaseUrl(
-          ExamplesEnv.first("GODARK_REST_URL", "GDX_REST_URL"));
-      GodarkRestClient.Builder rb =
-          GodarkRestClient.builder()
-              .apiKeyId(apiKeyId)
-              .apiSecret(apiSecret)
-              .passphrase(passphrase)
-              .restBaseUrl(rest);
-      if (rest.startsWith("https://")
-          && ExamplesEnv.truthy("GODARK_TLS_SKIP_VERIFY", "GDX_TLS_SKIP_VERIFY")) {
-        rb.sslContext(InsecureSsl.context());
-      }
-      GodarkRestClient restClient = rb.build();
-      restClient.connect();
-      try {
-        System.out.printf(
-            "Balance: shielded_raw=%d%n", restClient.getMyBalance().shieldedBalanceRaw());
-      } finally {
-        restClient.close();
-      }
-    }
 
     Map<String, String> headers = new LinkedHashMap<>();
     headers.put("X-Trader-Tag", "java-mm-full-trader");
@@ -136,8 +112,8 @@ public final class FullTraderExample {
         h -> {
           counts.merge("system_health", 1, Integer::sum);
           System.out.printf(
-              "HEALTH nodes=%d  accepting=%s  ready=%d%n",
-              h.totalNodes(), h.acceptingOrders(), h.ready());
+              "HEALTH component=%s  state=%d  serving=%s  cause=%s%n",
+              h.componentId(), h.state(), h.serving(), h.cause());
         });
     client.onBalanceUpdate(
         bal -> {

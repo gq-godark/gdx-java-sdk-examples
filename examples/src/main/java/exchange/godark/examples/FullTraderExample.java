@@ -8,8 +8,10 @@ import godark.TransportConfig;
 import godark.Types;
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -262,6 +264,109 @@ public final class FullTraderExample {
 
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after SELL/CANCEL", orderEvents);
+
+    // --- Bulk quote (mass quote) ---
+    // Place a whole ladder of resting quotes in one batched request. Passing
+    // null (or true) for postOnly keeps post-only behaviour: a leg that would
+    // cross is rejected as "failed" so the batch fuses into a single MPC round.
+    // Pass Boolean.FALSE for the relaxed path, where a crossing leg takes
+    // liquidity up to its limit and rests the remainder (the number of taker
+    // fills is reported per leg as fillCount).
+    // GDX_BASE anchors the ladder/cross near the live mark (default 64000).
+    double base = 64_000.0;
+    String baseEnv = ExamplesEnv.first("GDX_BASE");
+    if (baseEnv != null && !baseEnv.isBlank()) {
+      try {
+        double v = Double.parseDouble(baseEnv.strip());
+        if (v > 0) {
+          base = v;
+        }
+      } catch (NumberFormatException ignore) {
+        // keep default
+      }
+    }
+    System.out.println("Mass-quoting a 3-level BUY ladder (post-only)...");
+    List<Types.MassQuoteLegInput> ladder =
+        List.of(
+            new Types.MassQuoteLegInput("BUY", base * (1 - 0.003), 0.02),
+            new Types.MassQuoteLegInput("BUY", base * (1 - 0.006), 0.02),
+            new Types.MassQuoteLegInput("BUY", base * (1 - 0.009), 0.02));
+    List<Long> restingIds = new ArrayList<>();
+    try {
+      Types.MassQuoteAck mq = client.massQuote(SYMBOL, ladder, 1, null);
+      System.out.printf(
+          "Mass quote: success=%s sequence=%s legs=%d%n",
+          mq.success(), mq.sequence(), mq.results().size());
+      for (Types.MassQuoteLegResult r : mq.results()) {
+        System.out.printf(
+            "  leg %d: status=%s new_order_id=%s fills=%d err=%s%n",
+            r.legIndex(), r.status(), r.newOrderId(), r.fillCount(), r.errorCode());
+        if ("open".equals(r.status()) && r.newOrderId() != null && !r.newOrderId().isBlank()) {
+          try {
+            restingIds.add(Long.parseLong(r.newOrderId()));
+          } catch (NumberFormatException ignore) {
+            // non-numeric id; skip cleanup for this leg
+          }
+        }
+      }
+    } catch (GodarkException e) {
+      System.err.println("Mass quote rejected: " + e.getMessage());
+    }
+
+    TimeUnit.SECONDS.sleep(1);
+    drainOrders("after MASS QUOTE", orderEvents);
+
+    if (!restingIds.isEmpty()) {
+      System.out.printf("Batch-cancelling %d ladder orders (cleanup)...%n", restingIds.size());
+      try {
+        Types.BatchCancelAck bc = client.batchCancel(SYMBOL, restingIds);
+        for (Types.BatchCancelLegResult r : bc.results()) {
+          System.out.printf(
+              "  cancel id=%s: cancelled=%s err=%s%n", r.orderId(), r.cancelled(), r.errorCode());
+        }
+      } catch (GodarkException e) {
+        System.err.println("Batch cancel rejected: " + e.getMessage());
+      }
+      TimeUnit.MILLISECONDS.sleep(500);
+      drainOrders("after BATCH CANCEL", orderEvents);
+    }
+
+    // Demonstrate the batch-level post_only flag on a crossing leg.
+    double crossPx = base * 1.02;
+    // postOnly=true: a crossing leg is rejected (would-cross, error_code 2018).
+    System.out.println("Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...");
+    try {
+      Types.MassQuoteAck mq =
+          client.massQuote(
+              SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.001)), 1, Boolean.TRUE);
+      for (Types.MassQuoteLegResult r : mq.results()) {
+        System.out.printf(
+            "  leg %d: status=%s err=%s fills=%d%n",
+            r.legIndex(), r.status(), r.errorCode(), r.fillCount());
+      }
+    } catch (GodarkException e) {
+      System.err.println("post_only=true mass quote rejected: " + e.getMessage());
+    }
+    TimeUnit.MILLISECONDS.sleep(500);
+
+    // postOnly=false (relaxed): the crossing leg takes liquidity up to its limit
+    // and rests the remainder; taker fills are reported per leg as fillCount.
+    System.out.println(
+        "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...");
+    try {
+      Types.MassQuoteAck mq =
+          client.massQuote(
+              SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.003)), 1, Boolean.FALSE);
+      for (Types.MassQuoteLegResult r : mq.results()) {
+        System.out.printf(
+            "  leg %d: status=%s new_order_id=%s err=%s fills=%d%n",
+            r.legIndex(), r.status(), r.newOrderId(), r.errorCode(), r.fillCount());
+      }
+    } catch (GodarkException e) {
+      System.err.println("post_only=false mass quote rejected: " + e.getMessage());
+    }
+    TimeUnit.SECONDS.sleep(1);
+    drainOrders("after post_only mass quotes", orderEvents);
 
     System.out.println("Cancelling original BUY (cleanup)...");
     try {

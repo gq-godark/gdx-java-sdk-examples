@@ -67,6 +67,9 @@ public final class FullTraderExample {
     Map<String, Integer> counts = new HashMap<>();
     ArrayDeque<Types.OrderUpdate> orderEvents = new ArrayDeque<>();
     ArrayDeque<String> nonFatal = new ArrayDeque<>(32);
+    // BTC-USDC-PERP is symbol id 1; capture its live mark from snapshots so the
+    // mass-quote ladder/cross prices can anchor to the real touch. 0 = unseen.
+    double[] lastBtcMark = {0.0};
 
     GodarkClient.Builder b =
         GodarkClient.builder()
@@ -104,6 +107,16 @@ public final class FullTraderExample {
               "SNAP   source=%s  rows=%d  ts=%d%n",
               s.source(), s.rows().size(), s.serverTimestamp());
           for (Types.PositionRow row : s.rows()) {
+            if (row.symbolId() == 1 && row.markPrice() != null && !row.markPrice().isBlank()) {
+              try {
+                double v = Double.parseDouble(row.markPrice());
+                if (v > 0) {
+                  lastBtcMark[0] = v;
+                }
+              } catch (NumberFormatException ignore) {
+                // keep previous
+              }
+            }
             String mark = row.markPrice() != null && !row.markPrice().isBlank() ? row.markPrice() : "—";
             System.out.printf(
                 "  ↳ symbol=%d  side=%s  size=%s  entry=%s  mark=%s%n",
@@ -181,7 +194,7 @@ public final class FullTraderExample {
     }
 
     try {
-      runSession(client, counts, orderEvents, nonFatal, sep);
+      runSession(client, counts, orderEvents, nonFatal, sep, lastBtcMark);
     } catch (GodarkException e) {
       System.err.println(e.getMessage());
       System.exit(1);
@@ -215,7 +228,8 @@ public final class FullTraderExample {
       Map<String, Integer> counts,
       ArrayDeque<Types.OrderUpdate> orderEvents,
       ArrayDeque<String> nonFatal,
-      String sep)
+      String sep,
+      double[] lastBtcMark)
       throws GodarkException, InterruptedException {
 
     System.out.println("Placing limit BUY @ 67500...");
@@ -272,20 +286,25 @@ public final class FullTraderExample {
     // Pass Boolean.FALSE for the relaxed path, where a crossing leg takes
     // liquidity up to its limit and rests the remainder (the number of taker
     // fills is reported per leg as fillCount).
-    // GDX_BASE anchors the ladder/cross near the live mark (default 64000).
-    double base = 64_000.0;
-    String baseEnv = ExamplesEnv.first("GDX_BASE");
-    if (baseEnv != null && !baseEnv.isBlank()) {
-      try {
-        double v = Double.parseDouble(baseEnv.strip());
-        if (v > 0) {
-          base = v;
+    // Anchor the ladder/cross to the live BTC mark captured from the snapshot so
+    // the crossing demo below is deterministic regardless of current price. Fall
+    // back to GDX_BASE (default 64000) only if no mark was seen yet.
+    double base = lastBtcMark[0];
+    if (base <= 0) {
+      base = 64_000.0;
+      String baseEnv = ExamplesEnv.first("GDX_BASE");
+      if (baseEnv != null && !baseEnv.isBlank()) {
+        try {
+          double v = Double.parseDouble(baseEnv.strip());
+          if (v > 0) {
+            base = v;
+          }
+        } catch (NumberFormatException ignore) {
+          // keep default
         }
-      } catch (NumberFormatException ignore) {
-        // keep default
       }
     }
-    System.out.println("Mass-quoting a 3-level BUY ladder (post-only)...");
+    System.out.printf("Mass-quoting a 3-level BUY ladder (post-only), base=%.2f...%n", base);
     List<Types.MassQuoteLegInput> ladder =
         List.of(
             new Types.MassQuoteLegInput("BUY", base * (1 - 0.003), 0.02),
@@ -331,8 +350,11 @@ public final class FullTraderExample {
       drainOrders("after BATCH CANCEL", orderEvents);
     }
 
-    // Demonstrate the batch-level post_only flag on a crossing leg.
-    double crossPx = base * 1.02;
+    // Demonstrate the batch-level post_only flag on a crossing leg. Price a BUY
+    // ~5% above the live mark: aggressive enough to cross the resting ask, yet
+    // within the exchange's 10%-of-oracle limit. Anchored to the live mark, this
+    // makes the post_only=true (reject) vs false (fill) contrast deterministic.
+    double crossPx = base * 1.05;
     // postOnly=true: a crossing leg is rejected (would-cross, error_code 2018).
     System.out.println("Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...");
     try {

@@ -117,7 +117,7 @@ List available tasks:
 | Sample | Gradle task | Purpose |
 |--------|-------------|---------|
 | `Quickstart.java` | `./gradlew runQuickstart` | Minimal connect → LIMIT sell far from touch → cancel |
-| `FullTraderExample.java` | `./gradlew runFullTraderExample` | Reference flow: callbacks for pushes, place / modify / cancel, session summary |
+| `FullTraderExample.java` | `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel, session summary |
 
 Order-type support in this MM distribution is limited to **`MARKET`** and
 **`LIMIT`**.

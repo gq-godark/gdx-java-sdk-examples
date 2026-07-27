@@ -2,8 +2,10 @@
 
 This reference describes the API surface used by the bundled examples
 shipped in this distribution. The examples use WebSocket encrypted trading
-via `godark.GodarkClient`. REST and standalone market-data clients ship in
-the same JAR but are outside the bundled examples in this distribution.
+via `godark.GodarkClient`. Encrypted REST trading is not supported — all
+order flow (place / modify / cancel / mass-quote) runs over the Noise XK
+WebSocket client. A standalone market-data client also ships in the JAR but
+is outside the bundled examples in this distribution.
 
 Order placement support in this MM distribution is limited to `MARKET` and
 `LIMIT`.
@@ -218,7 +220,7 @@ patterns.
 | Gradle task | Purpose |
 |-------------|---------|
 | `./gradlew runQuickstart` | Minimal connect, place, cancel |
-| `./gradlew runFullTraderExample` | Reference flow with callbacks and order lifecycle |
+| `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel |
 
 ## Gradle integration (your own bot)
 

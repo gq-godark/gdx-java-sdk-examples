@@ -12,8 +12,10 @@ standalone-bot walkthrough, JAR layout / internals, refresh discipline, and
 sourcing-from-git instructions).
 
 > Scope: the MM examples use **WebSocket encrypted trading** via
-> `godark.GodarkClient`. REST and standalone market-data clients ship in
-> the same JAR but are outside the bundled examples in this distribution.
+> `godark.GodarkClient`. Encrypted REST trading is not supported — all
+> order flow (place / modify / cancel / mass-quote) runs over the Noise XK
+> WebSocket client. A standalone market-data client also ships in the JAR
+> but is outside the bundled examples in this distribution.
 > Order placement support is limited to `MARKET` and `LIMIT`.
 
 ## Quick Start
@@ -315,7 +317,7 @@ end-to-end try/catch / `onError` pattern.
 | File | Gradle task | Purpose |
 |------|-------------|---------|
 | `examples/src/main/java/exchange/godark/examples/Quickstart.java` | `./gradlew runQuickstart` | Minimal connect, place, cancel |
-| `examples/src/main/java/exchange/godark/examples/FullTraderExample.java` | `./gradlew runFullTraderExample` | Reference flow with callbacks and order lifecycle |
+| `examples/src/main/java/exchange/godark/examples/FullTraderExample.java` | `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel |
 | `examples/src/main/java/exchange/godark/examples/support/Dotenv.java` | (helper) | Multi-path `.env` loader used by both example mains |
 
 ## Gradle integration (your own bot)

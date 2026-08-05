@@ -379,10 +379,32 @@ public final class FullTraderExample {
       Types.MassQuoteAck mq =
           client.massQuote(
               SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.003)), 1, Boolean.FALSE);
+      java.util.ArrayList<Long> strayIds = new java.util.ArrayList<>();
       for (Types.MassQuoteLegResult r : mq.results()) {
         System.out.printf(
             "  leg %d: status=%s new_order_id=%s err=%s fills=%d%n",
             r.legIndex(), r.status(), r.newOrderId(), r.errorCode(), r.fillCount());
+        if ("open".equals(r.status()) && r.newOrderId() != null && !r.newOrderId().isBlank()) {
+          try {
+            strayIds.add(Long.parseLong(r.newOrderId()));
+          } catch (NumberFormatException ignore) {
+            // non-numeric id; skip cleanup for this leg
+          }
+        }
+      }
+      if (!strayIds.isEmpty()) {
+        System.out.printf(
+            "Batch-cancelling %d post_only=false remainder(s)...%n", strayIds.size());
+        try {
+          Types.BatchCancelAck bc = client.batchCancel(SYMBOL, strayIds);
+          for (Types.BatchCancelLegResult r : bc.results()) {
+            System.out.printf(
+                "  cancel id=%s: cancelled=%s err=%s%n",
+                r.orderId(), r.cancelled(), r.errorCode());
+          }
+        } catch (GodarkException e) {
+          System.err.println("post_only=false remainder cancel rejected: " + e.getMessage());
+        }
       }
     } catch (GodarkException e) {
       System.err.println("post_only=false mass quote rejected: " + e.getMessage());

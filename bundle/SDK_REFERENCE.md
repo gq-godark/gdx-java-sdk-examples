@@ -2,8 +2,10 @@
 
 This reference describes the API surface used by the bundled examples
 shipped in this distribution. The examples use WebSocket encrypted trading
-via `godark.GodarkClient`. REST and standalone market-data clients ship in
-the same JAR but are outside the bundled examples in this distribution.
+via `godark.GodarkClient`. Encrypted REST trading is not supported — all
+order flow (place / modify / cancel / mass-quote) runs over the Noise XK
+WebSocket client. A standalone market-data client also ships in the JAR but
+is outside the bundled examples in this distribution.
 
 Order placement support in this MM distribution is limited to `MARKET` and
 `LIMIT`.
@@ -59,6 +61,8 @@ Typical variables:
 
 - `GODARK_API_KEY_ID` (required for id/secret auth)
 - `GODARK_API_SECRET` (required)
+- `GODARK_PASSPHRASE` (required for API key-pair auth)
+- `GDX_NOISE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`
 - `GODARK_EDGE_URL` (optional host origin; client appends `/ws/v1`)
 
 Use the bundle-root `.env.example` as the template (copy to `.env`, or to
@@ -200,7 +204,7 @@ Checked failures extend **`godark.GodarkException`** (and runtime problems may
 still surface through `onError`):
 
 - `AuthenticationException` — auth or handshake failure
-- `SessionException` — ECDH / session setup or encryption session errors
+- `SessionException` — Noise XK handshake or encryption session errors
 - `OrderRejectedException` — order rejected by the edge; use `errorCode()` for
   symbolic reasons (for example `PRICE_DEVIATION_TOO_LARGE`,
   `MARGIN_INSUFFICIENT`)
@@ -216,7 +220,7 @@ patterns.
 | Gradle task | Purpose |
 |-------------|---------|
 | `./gradlew runQuickstart` | Minimal connect, place, cancel |
-| `./gradlew runFullTraderExample` | Reference flow with callbacks and order lifecycle |
+| `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel |
 
 ## Gradle integration (your own bot)
 

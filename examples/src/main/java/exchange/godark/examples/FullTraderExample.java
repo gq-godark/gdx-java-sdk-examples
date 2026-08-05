@@ -4,13 +4,14 @@ import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
 import godark.GodarkClient;
 import godark.GodarkException;
-import godark.GodarkRestClient;
 import godark.TransportConfig;
 import godark.Types;
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -50,29 +51,6 @@ public final class FullTraderExample {
         ExamplesEnv.firstOrDefault("wss://api.godark-dex.com", "GODARK_EDGE_URL", "GDX_EDGE_URL");
     System.out.println("Endpoint: " + base);
 
-    {
-      String rest = GodarkRestClient.resolveRestBaseUrl(
-          ExamplesEnv.first("GODARK_REST_URL", "GDX_REST_URL"));
-      GodarkRestClient.Builder rb =
-          GodarkRestClient.builder()
-              .apiKeyId(apiKeyId)
-              .apiSecret(apiSecret)
-              .passphrase(passphrase)
-              .restBaseUrl(rest);
-      if (rest.startsWith("https://")
-          && ExamplesEnv.truthy("GODARK_TLS_SKIP_VERIFY", "GDX_TLS_SKIP_VERIFY")) {
-        rb.sslContext(InsecureSsl.context());
-      }
-      GodarkRestClient restClient = rb.build();
-      restClient.connect();
-      try {
-        System.out.printf(
-            "Balance: shielded_raw=%d%n", restClient.getMyBalance().shieldedBalanceRaw());
-      } finally {
-        restClient.close();
-      }
-    }
-
     Map<String, String> headers = new LinkedHashMap<>();
     headers.put("X-Trader-Tag", "java-mm-full-trader");
 
@@ -89,6 +67,9 @@ public final class FullTraderExample {
     Map<String, Integer> counts = new HashMap<>();
     ArrayDeque<Types.OrderUpdate> orderEvents = new ArrayDeque<>();
     ArrayDeque<String> nonFatal = new ArrayDeque<>(32);
+    // BTC-USDC-PERP is symbol id 1; capture its live mark from snapshots so the
+    // mass-quote ladder/cross prices can anchor to the real touch. 0 = unseen.
+    double[] lastBtcMark = {0.0};
 
     GodarkClient.Builder b =
         GodarkClient.builder()
@@ -126,6 +107,16 @@ public final class FullTraderExample {
               "SNAP   source=%s  rows=%d  ts=%d%n",
               s.source(), s.rows().size(), s.serverTimestamp());
           for (Types.PositionRow row : s.rows()) {
+            if (row.symbolId() == 1 && row.markPrice() != null && !row.markPrice().isBlank()) {
+              try {
+                double v = Double.parseDouble(row.markPrice());
+                if (v > 0) {
+                  lastBtcMark[0] = v;
+                }
+              } catch (NumberFormatException ignore) {
+                // keep previous
+              }
+            }
             String mark = row.markPrice() != null && !row.markPrice().isBlank() ? row.markPrice() : "—";
             System.out.printf(
                 "  ↳ symbol=%d  side=%s  size=%s  entry=%s  mark=%s%n",
@@ -136,8 +127,8 @@ public final class FullTraderExample {
         h -> {
           counts.merge("system_health", 1, Integer::sum);
           System.out.printf(
-              "HEALTH nodes=%d  accepting=%s  ready=%d%n",
-              h.totalNodes(), h.acceptingOrders(), h.ready());
+              "HEALTH component=%s  state=%d  serving=%s  cause=%s%n",
+              h.componentId(), h.state(), h.serving(), h.cause());
         });
     client.onBalanceUpdate(
         bal -> {
@@ -203,7 +194,7 @@ public final class FullTraderExample {
     }
 
     try {
-      runSession(client, counts, orderEvents, nonFatal, sep);
+      runSession(client, counts, orderEvents, nonFatal, sep, lastBtcMark);
     } catch (GodarkException e) {
       System.err.println(e.getMessage());
       System.exit(1);
@@ -237,7 +228,8 @@ public final class FullTraderExample {
       Map<String, Integer> counts,
       ArrayDeque<Types.OrderUpdate> orderEvents,
       ArrayDeque<String> nonFatal,
-      String sep)
+      String sep,
+      double[] lastBtcMark)
       throws GodarkException, InterruptedException {
 
     System.out.println("Placing limit BUY @ 67500...");
@@ -286,6 +278,139 @@ public final class FullTraderExample {
 
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after SELL/CANCEL", orderEvents);
+
+    // --- Bulk quote (mass quote) ---
+    // Place a whole ladder of resting quotes in one batched request. Passing
+    // null (or true) for postOnly keeps post-only behaviour: a leg that would
+    // cross is rejected as "failed" so the batch fuses into a single MPC round.
+    // Pass Boolean.FALSE for the relaxed path, where a crossing leg takes
+    // liquidity up to its limit and rests the remainder (the number of taker
+    // fills is reported per leg as fillCount).
+    // Anchor the ladder/cross to the live BTC mark captured from the snapshot so
+    // the crossing demo below is deterministic regardless of current price. Fall
+    // back to GDX_BASE (default 64000) only if no mark was seen yet.
+    double base = lastBtcMark[0];
+    if (base <= 0) {
+      base = 64_000.0;
+      String baseEnv = ExamplesEnv.first("GDX_BASE");
+      if (baseEnv != null && !baseEnv.isBlank()) {
+        try {
+          double v = Double.parseDouble(baseEnv.strip());
+          if (v > 0) {
+            base = v;
+          }
+        } catch (NumberFormatException ignore) {
+          // keep default
+        }
+      }
+    }
+    System.out.printf("Mass-quoting a 3-level BUY ladder (post-only), base=%.2f...%n", base);
+    List<Types.MassQuoteLegInput> ladder =
+        List.of(
+            new Types.MassQuoteLegInput("BUY", base * (1 - 0.003), 0.02),
+            new Types.MassQuoteLegInput("BUY", base * (1 - 0.006), 0.02),
+            new Types.MassQuoteLegInput("BUY", base * (1 - 0.009), 0.02));
+    List<Long> restingIds = new ArrayList<>();
+    try {
+      Types.MassQuoteAck mq = client.massQuote(SYMBOL, ladder, 1, null);
+      System.out.printf(
+          "Mass quote: success=%s sequence=%s legs=%d%n",
+          mq.success(), mq.sequence(), mq.results().size());
+      for (Types.MassQuoteLegResult r : mq.results()) {
+        System.out.printf(
+            "  leg %d: status=%s new_order_id=%s fills=%d err=%s%n",
+            r.legIndex(), r.status(), r.newOrderId(), r.fillCount(), r.errorCode());
+        if ("open".equals(r.status()) && r.newOrderId() != null && !r.newOrderId().isBlank()) {
+          try {
+            restingIds.add(Long.parseLong(r.newOrderId()));
+          } catch (NumberFormatException ignore) {
+            // non-numeric id; skip cleanup for this leg
+          }
+        }
+      }
+    } catch (GodarkException e) {
+      System.err.println("Mass quote rejected: " + e.getMessage());
+    }
+
+    TimeUnit.SECONDS.sleep(1);
+    drainOrders("after MASS QUOTE", orderEvents);
+
+    if (!restingIds.isEmpty()) {
+      System.out.printf("Batch-cancelling %d ladder orders (cleanup)...%n", restingIds.size());
+      try {
+        Types.BatchCancelAck bc = client.batchCancel(SYMBOL, restingIds);
+        for (Types.BatchCancelLegResult r : bc.results()) {
+          System.out.printf(
+              "  cancel id=%s: cancelled=%s err=%s%n", r.orderId(), r.cancelled(), r.errorCode());
+        }
+      } catch (GodarkException e) {
+        System.err.println("Batch cancel rejected: " + e.getMessage());
+      }
+      TimeUnit.MILLISECONDS.sleep(500);
+      drainOrders("after BATCH CANCEL", orderEvents);
+    }
+
+    // Demonstrate the batch-level post_only flag on a crossing leg. Price a BUY
+    // ~5% above the live mark: aggressive enough to cross the resting ask, yet
+    // within the exchange's 10%-of-oracle limit. Anchored to the live mark, this
+    // makes the post_only=true (reject) vs false (fill) contrast deterministic.
+    double crossPx = base * 1.05;
+    // postOnly=true: a crossing leg is rejected (would-cross, error_code 2018).
+    System.out.println("Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...");
+    try {
+      Types.MassQuoteAck mq =
+          client.massQuote(
+              SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.001)), 1, Boolean.TRUE);
+      for (Types.MassQuoteLegResult r : mq.results()) {
+        System.out.printf(
+            "  leg %d: status=%s err=%s fills=%d%n",
+            r.legIndex(), r.status(), r.errorCode(), r.fillCount());
+      }
+    } catch (GodarkException e) {
+      System.err.println("post_only=true mass quote rejected: " + e.getMessage());
+    }
+    TimeUnit.MILLISECONDS.sleep(500);
+
+    // postOnly=false (relaxed): the crossing leg takes liquidity up to its limit
+    // and rests the remainder; taker fills are reported per leg as fillCount.
+    System.out.println(
+        "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...");
+    try {
+      Types.MassQuoteAck mq =
+          client.massQuote(
+              SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.003)), 1, Boolean.FALSE);
+      java.util.ArrayList<Long> strayIds = new java.util.ArrayList<>();
+      for (Types.MassQuoteLegResult r : mq.results()) {
+        System.out.printf(
+            "  leg %d: status=%s new_order_id=%s err=%s fills=%d%n",
+            r.legIndex(), r.status(), r.newOrderId(), r.errorCode(), r.fillCount());
+        if ("open".equals(r.status()) && r.newOrderId() != null && !r.newOrderId().isBlank()) {
+          try {
+            strayIds.add(Long.parseLong(r.newOrderId()));
+          } catch (NumberFormatException ignore) {
+            // non-numeric id; skip cleanup for this leg
+          }
+        }
+      }
+      if (!strayIds.isEmpty()) {
+        System.out.printf(
+            "Batch-cancelling %d post_only=false remainder(s)...%n", strayIds.size());
+        try {
+          Types.BatchCancelAck bc = client.batchCancel(SYMBOL, strayIds);
+          for (Types.BatchCancelLegResult r : bc.results()) {
+            System.out.printf(
+                "  cancel id=%s: cancelled=%s err=%s%n",
+                r.orderId(), r.cancelled(), r.errorCode());
+          }
+        } catch (GodarkException e) {
+          System.err.println("post_only=false remainder cancel rejected: " + e.getMessage());
+        }
+      }
+    } catch (GodarkException e) {
+      System.err.println("post_only=false mass quote rejected: " + e.getMessage());
+    }
+    TimeUnit.SECONDS.sleep(1);
+    drainOrders("after post_only mass quotes", orderEvents);
 
     System.out.println("Cancelling original BUY (cleanup)...");
     try {

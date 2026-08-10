@@ -40,15 +40,20 @@ Copy the bundle-root `.env.example` to `.env` and set:
 - `GODARK_API_KEY_ID`
 - `GODARK_API_SECRET`
 - `GODARK_PASSPHRASE`
-- `GDX_NOISE_STATIC_PUBLIC_KEY` (64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`)
+
+Public testnet needs only the three credential keys above — the SDK Testnet environment preset supplies the edge URL and Noise pin.
+
+Optional:
+
+- `GODARK_EDGE_URL` — override the edge URL.
+- `GDX_NOISE_STATIC_PUBLIC_KEY` — override the sequencer Noise pin (**not required for testnet**). Aliases: `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`.
 
 ```bash
 cp .env.example .env
 # optional override when running from examples/: cp ../.env examples/.env
 ```
 
-Optional: `GODARK_EDGE_URL` (defaults to `wss://api.godark-dex.com`),
-`GODARK_USER_UUID`, `GODARK_TLS_SKIP_VERIFY` for local edges.
+Also optional for local edges: `GODARK_USER_UUID`, `GODARK_TLS_SKIP_VERIFY`.
 
 ## 4) Run quickstart
 

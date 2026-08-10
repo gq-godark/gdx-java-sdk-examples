@@ -2,6 +2,7 @@ package exchange.godark.examples;
 
 import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
+import godark.Environment;
 import godark.GodarkClient;
 import godark.GodarkException;
 import godark.TransportConfig;
@@ -31,11 +32,21 @@ public final class Quickstart {
       return;
     }
 
+    String baseOverride = ExamplesEnv.first("GODARK_EDGE_URL", "GDX_EDGE_URL");
     String base =
-        ExamplesEnv.firstOrDefault("wss://api.godark-dex.com", "GODARK_EDGE_URL", "GDX_EDGE_URL");
+        baseOverride != null && !baseOverride.isBlank()
+            ? baseOverride
+            : Environment.TESTNET.edgeBaseUrl();
 
     GodarkClient.Builder b =
-        GodarkClient.builder().baseUrl(base).apiKeyId(apiKeyId).apiSecret(apiSecret).passphrase(passphrase);
+        GodarkClient.builder()
+            .environment(Environment.TESTNET)
+            .apiKeyId(apiKeyId)
+            .apiSecret(apiSecret)
+            .passphrase(passphrase);
+    if (baseOverride != null && !baseOverride.isBlank()) {
+      b.baseUrl(baseOverride);
+    }
     String uid = ExamplesEnv.first("GODARK_USER_UUID", "GDX_USER_UUID");
     if (uid != null && !uid.isBlank()) {
       b.userUuid(uid);

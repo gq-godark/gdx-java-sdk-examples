@@ -2,6 +2,7 @@ package exchange.godark.examples;
 
 import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
+import godark.Environment;
 import godark.GodarkClient;
 import godark.GodarkException;
 import godark.TransportConfig;
@@ -47,8 +48,11 @@ public final class FullTraderExample {
       return;
     }
 
+    String baseOverride = ExamplesEnv.first("GODARK_EDGE_URL", "GDX_EDGE_URL");
     String base =
-        ExamplesEnv.firstOrDefault("wss://api.godark-dex.com", "GODARK_EDGE_URL", "GDX_EDGE_URL");
+        baseOverride != null && !baseOverride.isBlank()
+            ? baseOverride
+            : Environment.TESTNET.edgeBaseUrl();
     System.out.println("Endpoint: " + base);
 
     Map<String, String> headers = new LinkedHashMap<>();
@@ -73,11 +77,14 @@ public final class FullTraderExample {
 
     GodarkClient.Builder b =
         GodarkClient.builder()
-            .baseUrl(base)
+            .environment(Environment.TESTNET)
             .apiKeyId(apiKeyId)
             .apiSecret(apiSecret)
             .passphrase(passphrase)
             .transport(transport);
+    if (baseOverride != null && !baseOverride.isBlank()) {
+      b.baseUrl(baseOverride);
+    }
     String uidCfg = ExamplesEnv.first("GODARK_USER_UUID", "GDX_USER_UUID");
     if (uidCfg != null && !uidCfg.isBlank()) {
       b.userUuid(uidCfg);

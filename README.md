@@ -95,10 +95,13 @@ so no Maven repository configuration is needed.
 
 ### From a git clone (development)
 
+Credentials must live under `examples/` (Gradle’s working directory). The root
+`.env.example` is only a pointer — do not copy it.
+
 ```bash
 git clone https://github.com/gq-godark/gdx-java-sdk-examples.git
 cd gdx-java-sdk-examples
-cp .env.example .env
+cp examples/.env.example examples/.env
 # fill in credentials
 
 cd examples
@@ -116,7 +119,7 @@ List available tasks:
 
 | Sample | Gradle task | Purpose |
 |--------|-------------|---------|
-| `Quickstart.java` | `./gradlew runQuickstart` | Minimal connect → LIMIT sell far from touch → cancel |
+| `Quickstart.java` | `./gradlew runQuickstart` | Minimal connect → `subscribe("orders")` → LIMIT sell far from touch → cancel (book confirmation needs the private orders channel) |
 | `FullTraderExample.java` | `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel, session summary |
 
 Order-type support in this MM distribution is limited to **`MARKET`** and

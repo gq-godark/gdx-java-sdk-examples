@@ -62,10 +62,15 @@ public final class Quickstart {
       String user = client.userUuid().orElse("");
       System.out.println("Connected as user_uuid=" + user);
       try {
+        // Book confirmation waits on private order updates; subscribe first.
+        client.subscribe("orders", "positions");
+        Thread.sleep(350);
         Types.OrderAck ack =
             client.placeOrder(
                 SYMBOL, "SELL", "LIMIT", 0.01, 999_999.0, "GTC", false, null, null);
         System.out.println("Place OK — order_id=" + ack.orderId());
+        // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).
+        Thread.sleep(500);
         Types.OrderAck cancelAck = client.cancelOrder(ack.orderId(), SYMBOL);
         System.out.println("Cancel OK — order_id=" + cancelAck.orderId());
       } catch (GodarkException e) {

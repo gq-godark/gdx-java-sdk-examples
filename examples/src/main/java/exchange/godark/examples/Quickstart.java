@@ -62,6 +62,9 @@ public final class Quickstart {
       String user = client.userUuid().orElse("");
       System.out.println("Connected as user_uuid=" + user);
       try {
+        // Book confirmation waits on private order updates; subscribe first.
+        client.subscribe("orders", "positions");
+        Thread.sleep(350);
         Types.OrderAck ack =
             client.placeOrder(
                 SYMBOL, "SELL", "LIMIT", 0.01, 999_999.0, "GTC", false, null, null);

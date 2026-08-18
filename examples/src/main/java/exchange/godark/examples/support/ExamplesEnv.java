@@ -3,8 +3,8 @@ package exchange.godark.examples.support;
 import java.util.Arrays;
 
 /**
- * Thin helpers for examples: config comes from {@link Dotenv} ( {@code .env} / {@code .env.example}
- * ), not from required exported environment variables.
+ * Thin helpers for examples: {@link Dotenv} prefers the OS environment, then {@code .env} /
+ * {@code .env.example}. Pass {@code GODARK_*} then {@code GDX_*} so the canonical name wins.
  */
 public final class ExamplesEnv {
 

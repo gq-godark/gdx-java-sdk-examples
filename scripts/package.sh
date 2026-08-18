@@ -188,6 +188,7 @@ for required in \
   "${DIST_NAME}/sdk/lib/godark-.*\\.jar" \
   "${DIST_NAME}/examples/src/main/java/exchange/godark/examples/Quickstart\\.java" \
   "${DIST_NAME}/examples/src/main/java/exchange/godark/examples/FullTraderExample\\.java" \
+  "${DIST_NAME}/examples/src/main/java/exchange/godark/examples/RestClientExample\\.java" \
   "${DIST_NAME}/README\\.md" \
   "${DIST_NAME}/SDK_REFERENCE\\.md" \
   "${DIST_NAME}/\\.env\\.example"; do

@@ -87,7 +87,7 @@ cd examples
 chmod +x gradlew    # if needed
 ./gradlew --no-daemon runQuickstart
 ./gradlew --no-daemon runFullTraderExample
-./gradlew -p examples runRestClientExample
+./gradlew --no-daemon runRestClientExample
 ```
 
 The Gradle wrapper handles its own bootstrap (no system Gradle required) and
@@ -108,6 +108,7 @@ cp examples/.env.example examples/.env
 cd examples
 ./gradlew --no-daemon runQuickstart
 ./gradlew --no-daemon runFullTraderExample
+./gradlew --no-daemon runRestClientExample
 ```
 
 List available tasks:
@@ -122,6 +123,7 @@ List available tasks:
 |--------|-------------|---------|
 | `Quickstart.java` | `./gradlew runQuickstart` | Minimal connect → `subscribe("orders")` → LIMIT sell far from touch → cancel (book confirmation needs the private orders channel) |
 | `FullTraderExample.java` | `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel, session summary |
+| `RestClientExample.java` | `./gradlew runRestClientExample` | Residual HTTP: public GETs, auth, me / leverage / balance, Noise XK note |
 
 Order-type support in this MM distribution is limited to **`MARKET`** and
 **`LIMIT`**.

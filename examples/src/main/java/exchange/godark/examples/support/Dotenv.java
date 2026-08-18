@@ -14,9 +14,10 @@ import java.util.Objects;
 /**
  * Loads {@code .env} / {@code .env.example} from the examples tree and repo root.
  *
- * <p>Search order (later entries override earlier for the same key): parent {@code .env.example},
- * cwd {@code .env.example}, parent {@code .env}, cwd {@code .env} — so the nearest {@code .env}
- * wins. Values are <strong>not</strong> read from {@link System#getenv} in {@link #get(String)}.
+ * <p>{@link #get(String)} prefers a non-blank {@link System#getenv} value, then the merged files
+ * (typical OS-over-file precedence). File search order (later entries override earlier for the
+ * same key): parent {@code .env.example}, cwd {@code .env.example}, parent {@code .env}, cwd
+ * {@code .env} — so the nearest {@code .env} wins among files.
  */
 public final class Dotenv {
 
@@ -57,8 +58,16 @@ public final class Dotenv {
   }
 
   public static String get(String key) {
+    Objects.requireNonNull(key, "key");
+    String env = System.getenv(key);
+    if (env != null) {
+      env = env.strip();
+      if (!env.isEmpty()) {
+        return env;
+      }
+    }
     load();
-    String v = merged.get(Objects.requireNonNull(key, "key"));
+    String v = merged.get(key);
     if (v == null) {
       return null;
     }
@@ -66,10 +75,28 @@ public final class Dotenv {
     return v.isEmpty() ? null : v;
   }
 
+  /**
+   * OS values among {@code keys} first (caller should list {@code GODARK_*} then {@code GDX_*}),
+   * then the same keys from merged {@code .env} files.
+   */
   public static String getFirst(String... keys) {
     for (String k : keys) {
-      String v = get(k);
-      if (v != null) {
+      String env = System.getenv(k);
+      if (env != null) {
+        env = env.strip();
+        if (!env.isEmpty()) {
+          return env;
+        }
+      }
+    }
+    load();
+    for (String k : keys) {
+      String v = merged.get(k);
+      if (v == null) {
+        continue;
+      }
+      v = v.strip();
+      if (!v.isEmpty()) {
         return v;
       }
     }

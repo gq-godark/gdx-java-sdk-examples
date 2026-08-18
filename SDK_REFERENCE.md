@@ -125,8 +125,10 @@ consumer site.
 | Method | Signature | Purpose |
 |--------|-----------|---------|
 | `placeOrder` | `OrderAck placeOrder(String symbol, String side, String orderType, double quantity, Double price, String timeInForce, boolean aon, Double minFillSize, Long expiryTime) throws GodarkException` | Place encrypted order |
+| `updateLeverage` | `OrderAck updateLeverage(String symbol, int leverage) throws GodarkException` | Set per-symbol account leverage (place/massQuote inherit this) |
 | `cancelOrder` | `OrderAck cancelOrder(String orderId, String symbol) throws GodarkException` | Cancel by id (overload defaults symbol to `BTC-USDC-PERP`) |
 | `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, Double newPrice, Double newQuantity) throws GodarkException` | Modify price and/or quantity |
+| `massQuote` | `MassQuoteAck massQuote(String symbol, List<MassQuoteLegInput> legs, Boolean postOnly) throws GodarkException` | Bulk cancel-replace ladder |
 
 `side`, `orderType`, and `timeInForce` are **strings** at the command boundary
 (for example `"SELL"`, `"LIMIT"`, `"GTC"`). Stream updates use protobuf enums on
@@ -443,3 +445,7 @@ the JAR a second time at the pinned SHA and confirms the vendored copy has
 the same content as the freshly-built one. Layer 2 automation
 (`auto-bump-sdk-pin.yml`) wraps this loop into a rolling auto-PR triggered by
 SDK pushes.
+
+## RestClient example
+
+`GodarkRestClient` is exercised by `rest_client_example` / `rest-client-example`: REST auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. Encrypted place/cancel/modify/update-leverage remain WebSocket-only via `GodarkClient`.

@@ -239,6 +239,16 @@ public final class FullTraderExample {
       double[] lastBtcMark)
       throws GodarkException, InterruptedException {
 
+    System.out.println("Setting leverage to 1 via updateLeverage...");
+    try {
+      Types.OrderAck levAck = client.updateLeverage(SYMBOL, 1);
+      System.out.printf(
+          "updateLeverage: success=%s  order_id=%s%n", levAck.success(), levAck.orderId());
+    } catch (GodarkException e) {
+      System.err.println("updateLeverage rejected: " + e.getMessage());
+      return;
+    }
+
     System.out.println("Placing limit BUY @ 67500...");
     Types.OrderAck buyAck;
     try {
@@ -319,7 +329,7 @@ public final class FullTraderExample {
             new Types.MassQuoteLegInput("BUY", base * (1 - 0.009), 0.02));
     List<Long> restingIds = new ArrayList<>();
     try {
-      Types.MassQuoteAck mq = client.massQuote(SYMBOL, ladder, 1, null);
+      Types.MassQuoteAck mq = client.massQuote(SYMBOL, ladder, null);
       System.out.printf(
           "Mass quote: success=%s sequence=%s legs=%d%n",
           mq.success(), mq.sequence(), mq.results().size());
@@ -367,7 +377,7 @@ public final class FullTraderExample {
     try {
       Types.MassQuoteAck mq =
           client.massQuote(
-              SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.001)), 1, Boolean.TRUE);
+              SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.001)), Boolean.TRUE);
       for (Types.MassQuoteLegResult r : mq.results()) {
         System.out.printf(
             "  leg %d: status=%s err=%s fills=%d%n",
@@ -385,7 +395,7 @@ public final class FullTraderExample {
     try {
       Types.MassQuoteAck mq =
           client.massQuote(
-              SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.003)), 1, Boolean.FALSE);
+              SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.003)), Boolean.FALSE);
       java.util.ArrayList<Long> strayIds = new java.util.ArrayList<>();
       for (Types.MassQuoteLegResult r : mq.results()) {
         System.out.printf(

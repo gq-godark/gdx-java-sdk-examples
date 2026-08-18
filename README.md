@@ -87,6 +87,7 @@ cd examples
 chmod +x gradlew    # if needed
 ./gradlew --no-daemon runQuickstart
 ./gradlew --no-daemon runFullTraderExample
+./gradlew -p examples runRestClientExample
 ```
 
 The Gradle wrapper handles its own bootstrap (no system Gradle required) and

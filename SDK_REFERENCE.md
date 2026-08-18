@@ -445,3 +445,7 @@ the JAR a second time at the pinned SHA and confirms the vendored copy has
 the same content as the freshly-built one. Layer 2 automation
 (`auto-bump-sdk-pin.yml`) wraps this loop into a rolling auto-PR triggered by
 SDK pushes.
+
+## RestClient example
+
+`GodarkRestClient` is exercised by `rest_client_example` / `rest-client-example`: REST auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. Encrypted place/cancel/modify/update-leverage remain WebSocket-only via `GodarkClient`.

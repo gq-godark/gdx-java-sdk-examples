@@ -273,7 +273,7 @@ Checked failures extend **`godark.GodarkException`** (and runtime problems may
 still surface through `onError`):
 
 - `AuthenticationException` — auth or handshake failure
-- `SessionException` — Noise XK handshake or encryption session errors
+- `SessionException` — HPKE setup handshake or encryption session errors
 - `OrderRejectedException` — order rejected by the edge; use `errorCode()` for
   symbolic reasons
 - `ConnectionException` — transport-level disconnect or failure

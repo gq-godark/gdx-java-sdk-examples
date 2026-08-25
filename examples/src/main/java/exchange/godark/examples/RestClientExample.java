@@ -9,7 +9,7 @@ import godark.Types;
 /**
  * Minimal GodarkRestClient demo — auth + account reads + public market data.
  *
- * <p>Encrypted place/cancel/modify/updateLeverage require GodarkClient (WebSocket / Noise XK); see
+ * <p>Encrypted place/cancel/modify/updateLeverage require GodarkClient (WebSocket / HPKE); see
  * Quickstart / FullTraderExample.
  *
  * <pre>
@@ -88,7 +88,7 @@ public final class RestClientExample {
       }
 
       System.out.println("REST reads succeeded.");
-      System.out.println("Encrypted trading requires GodarkClient over WebSocket (Noise XK).");
+      System.out.println("Encrypted trading requires GodarkClient over WebSocket (HPKE).");
     }
   }
 }

@@ -217,6 +217,19 @@ public final class FullTraderExample {
     System.out.println("Disconnected cleanly");
   }
 
+  private static double liveMarkPrice() {
+    String raw =
+        ExamplesEnv.first("GODARK_E2E_PRICE", "GDX_E2E_PRICE", "GDX_LIVE_PRICE");
+    if (raw != null && !raw.isBlank()) {
+      try {
+        return Double.parseDouble(raw);
+      } catch (NumberFormatException ignored) {
+        // fall through
+      }
+    }
+    return 79_000.0;
+  }
+
   private static void drainOrders(String label, ArrayDeque<Types.OrderUpdate> orderEvents) {
     int n = orderEvents.size();
     while (!orderEvents.isEmpty()) {
@@ -249,12 +262,14 @@ public final class FullTraderExample {
       return;
     }
 
-    System.out.println("Placing limit BUY @ 67500...");
+    double mark = liveMarkPrice();
+    double buyPx = Math.round(mark * 0.997 * 10.0) / 10.0;
+    System.out.printf("Placing limit BUY @ %.1f (mark=%.1f)...%n", buyPx, mark);
     Types.OrderAck buyAck;
     try {
       buyAck =
           client.placeOrder(
-              SYMBOL, "BUY", "LIMIT", 0.1, 67_500.0, "GTC", false, null, null);
+              SYMBOL, "BUY", "LIMIT", 0.1, buyPx, "GTC", false, null, null);
       System.out.printf(
           "BUY placed: order_id=%s  sequence=%s%n", buyAck.orderId(), buyAck.sequence());
     } catch (GodarkException e) {
@@ -265,9 +280,10 @@ public final class FullTraderExample {
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after BUY", orderEvents);
 
-    System.out.println("Modifying order price to 68000...");
+    double modifyPx = Math.round(mark * 0.996 * 10.0) / 10.0;
+    System.out.printf("Modifying order price to %.1f...%n", modifyPx);
     try {
-      Types.OrderAck modAck = client.modifyOrder(buyAck.orderId(), SYMBOL, 68_000.0, null);
+      Types.OrderAck modAck = client.modifyOrder(buyAck.orderId(), SYMBOL, modifyPx, null);
       System.out.println("Modified: order_id=" + modAck.orderId());
     } catch (GodarkException e) {
       System.err.println("Modify rejected: " + e.getMessage());
@@ -276,11 +292,12 @@ public final class FullTraderExample {
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after MODIFY", orderEvents);
 
-    System.out.println("Placing limit SELL @ 95000...");
+    double sellPx = Math.round(mark * 1.03 * 10.0) / 10.0;
+    System.out.printf("Placing limit SELL @ %.1f...%n", sellPx);
     try {
       Types.OrderAck sellAck =
           client.placeOrder(
-              SYMBOL, "SELL", "LIMIT", 0.05, 95_000.0, "GTC", false, null, null);
+              SYMBOL, "SELL", "LIMIT", 0.05, sellPx, "GTC", false, null, null);
       System.out.println("SELL placed: order_id=" + sellAck.orderId());
       TimeUnit.MILLISECONDS.sleep(500);
       try {

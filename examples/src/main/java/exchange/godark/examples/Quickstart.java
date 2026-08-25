@@ -13,6 +13,19 @@ public final class Quickstart {
 
   private static final String SYMBOL = "BTC-USDC-PERP";
 
+  private static double liveMarkPrice() {
+    String raw =
+        ExamplesEnv.first("GODARK_E2E_PRICE", "GDX_E2E_PRICE", "GDX_LIVE_PRICE");
+    if (raw != null && !raw.isBlank()) {
+      try {
+        return Double.parseDouble(raw);
+      } catch (NumberFormatException ignored) {
+        // fall through
+      }
+    }
+    return 79_000.0;
+  }
+
   private Quickstart() {}
 
   public static void main(String[] args) throws Exception {
@@ -65,10 +78,14 @@ public final class Quickstart {
         // Book confirmation waits on private order updates; subscribe first.
         client.subscribe("orders", "positions");
         Thread.sleep(350);
+        double mark = liveMarkPrice();
+        double sellPx = Math.round(mark * 1.03 * 10.0) / 10.0;
         Types.OrderAck ack =
             client.placeOrder(
-                SYMBOL, "SELL", "LIMIT", 0.01, 999_999.0, "GTC", false, null, null);
-        System.out.println("Place OK — order_id=" + ack.orderId());
+                SYMBOL, "SELL", "LIMIT", 0.01, sellPx, "GTC", false, null, null);
+        System.out.printf(
+            "Place OK — order_id=%s (limit SELL @ %.1f, mark=%.1f)%n",
+            ack.orderId(), sellPx, mark);
         // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).
         Thread.sleep(500);
         Types.OrderAck cancelAck = client.cancelOrder(ack.orderId(), SYMBOL);

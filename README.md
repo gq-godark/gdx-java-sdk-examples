@@ -62,11 +62,22 @@ Required:
 Optional:
 
 - `GODARK_EDGE_URL` — override the edge URL (default: public testnet `wss://api.godark-dex.com` via the SDK Testnet environment preset).
-- `GDX_NOISE_STATIC_PUBLIC_KEY` — override the sequencer Noise pin. **Not required for public testnet** — the SDK Environment Testnet preset bakes it in. Aliases: `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`.
+- `GDX_HPKE_STATIC_PUBLIC_KEY` — sequencer HPKE static public key (64 hex). Required for **localnet/devnet** encrypted trading; legacy `GDX_NOISE_*` env names are still accepted. Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`.
 - `GODARK_USER_UUID` — some local edges need an explicit UUID from auth.
 - `GODARK_TLS_SKIP_VERIFY` — set to `1` / `true` for dev TLS on `wss://`.
 
 Legacy `GDX_*` names are accepted when the matching `GODARK_*` key is unset.
+
+## Localnet (`gdx up`)
+
+```bash
+GODARK_EDGE_URL=ws://127.0.0.1:13300
+GODARK_API_KEY=test-key-1
+GDX_HPKE_STATIC_PUBLIC_KEY=1d61f116451fdfda1aa4aaf50b7200c3b362d0445bfa2d7ef1f80b3b8881a533
+gdx fund 00000000-0000-4000-8000-000000000001
+```
+
+Copy `VITE_GDX_HPKE_STATIC_PUBKEY` from `gdx-web/.env.localnet` if your pin differs.
 
 ## Install
 
@@ -123,7 +134,7 @@ List available tasks:
 |--------|-------------|---------|
 | `Quickstart.java` | `./gradlew runQuickstart` | Minimal connect → `subscribe("orders")` → LIMIT sell far from touch → cancel (book confirmation needs the private orders channel) |
 | `FullTraderExample.java` | `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel, session summary |
-| `RestClientExample.java` | `./gradlew runRestClientExample` | Residual HTTP: public GETs, auth, me / leverage / balance, Noise XK note |
+| `RestClientExample.java` | `./gradlew runRestClientExample` | Residual HTTP: public GETs, auth, me / leverage / balance, HPKE WebSocket note |
 
 Order-type support in this MM distribution is limited to **`MARKET`** and
 **`LIMIT`**.

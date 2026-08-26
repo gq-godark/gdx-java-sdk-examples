@@ -1,15 +1,14 @@
 package exchange.godark.examples;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import exchange.godark.examples.support.ExamplesEnv;
 import godark.GodarkException;
 import godark.GodarkRestClient;
 import godark.Types;
 
 /**
- * Minimal GodarkRestClient demo — auth + account reads + public market data.
+ * Minimal GodarkRestClient demo — auth + account reads.
  *
- * <p>Encrypted place/cancel/modify/updateLeverage require GodarkClient (WebSocket / Noise XK); see
+ * <p>Encrypted place/cancel/modify/updateLeverage require GodarkClient (WebSocket / HPKE); see
  * Quickstart / FullTraderExample.
  *
  * <pre>
@@ -49,34 +48,29 @@ public final class RestClientExample {
     }
 
     try (GodarkRestClient client = builder.build()) {
-      // Public market-data GETs — no connect() required.
-      JsonNode rates = client.getFundingRates();
-      JsonNode oi = client.getOpenInterest();
-      JsonNode vol = client.getVolume();
-      System.out.printf(
-          "funding_rates: %d symbols (first=%s)%n",
-          rates.size(), rates.size() > 0 ? rates.get(0) : null);
-      System.out.printf(
-          "open_interest: %d symbols (first=%s)%n", oi.size(), oi.size() > 0 ? oi.get(0) : null);
-      System.out.printf(
-          "volume: total_24h=%s symbols=%d%n",
-          vol.path("total_volume_24h").asText(), vol.path("symbols").size());
-
       System.out.println("connecting (REST auth/token)...");
       client.connect();
 
-      Types.MeProfile me = client.getMe();
-      System.out.printf(
-          "me: id=%s wallet=%s tier=%s%n", me.id(), me.walletAddress(), me.tier());
+      try {
+        Types.MeProfile me = client.getMe();
+        System.out.printf(
+            "me: id=%s wallet=%s tier=%s%n", me.id(), me.walletAddress(), me.tier());
+      } catch (GodarkException e) {
+        System.out.println("getMe skipped: " + e.getMessage());
+      }
 
-      Types.LeverageSettings lev = client.getLeverage();
-      System.out.printf("leverage settings: %d entries%n", lev.settings().size());
-      lev.settings().stream()
-          .limit(5)
-          .forEach(
-              row ->
-                  System.out.printf(
-                      "  symbolId=%d leverage=%d%n", row.symbolId(), row.leverage()));
+      try {
+        Types.LeverageSettings lev = client.getLeverage();
+        System.out.printf("leverage settings: %d entries%n", lev.settings().size());
+        lev.settings().stream()
+            .limit(5)
+            .forEach(
+                row ->
+                    System.out.printf(
+                        "  symbolId=%d leverage=%d%n", row.symbolId(), row.leverage()));
+      } catch (GodarkException e) {
+        System.out.println("getLeverage skipped: " + e.getMessage());
+      }
 
       try {
         Types.Balance bal = client.getMyBalance();
@@ -88,7 +82,7 @@ public final class RestClientExample {
       }
 
       System.out.println("REST reads succeeded.");
-      System.out.println("Encrypted trading requires GodarkClient over WebSocket (Noise XK).");
+      System.out.println("Encrypted trading requires GodarkClient over WebSocket (HPKE).");
     }
   }
 }

@@ -238,9 +238,24 @@ public final class FullTraderExample {
     int n = orderEvents.size();
     while (!orderEvents.isEmpty()) {
       Types.OrderUpdate u = orderEvents.removeFirst();
+      StringBuilder badges = new StringBuilder();
+      if (u.cancelReason() != null) {
+        badges.append("  cancel_reason=").append(u.cancelReason());
+      }
+      if (u.reduceOnly()) {
+        badges.append("  reduce_only=true");
+      }
+      if (u.postOnly()) {
+        badges.append("  post_only=true");
+      }
       System.out.printf(
-          "ORDER  %s  id=%s  status=%s  filled=%s  remaining=%s%n",
-          u.updateType(), u.orderId(), u.status(), u.filledQty(), u.remainingQty());
+          "ORDER  %s  id=%s  status=%s  filled=%s  remaining=%s%s%n",
+          u.updateType(),
+          u.orderId(),
+          u.status(),
+          u.filledQty(),
+          u.remainingQty(),
+          badges);
     }
     if (n > 0) {
       System.out.printf("  (%d order update(s) %s)%n", n, label);

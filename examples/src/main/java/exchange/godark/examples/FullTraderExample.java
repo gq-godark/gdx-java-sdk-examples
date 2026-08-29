@@ -157,8 +157,8 @@ public final class FullTraderExample {
         fu -> {
           counts.merge("funding_rate", 1, Integer::sum);
           System.out.printf(
-              "FUND   symbol=%d  current=%s  predicted=%s%n",
-              fu.symbolId(), fu.currentRate(), fu.predictedRate());
+              "FUND   symbol=%d  rate=%s  last=%s%n",
+              fu.symbolId(), fu.fundingRate(), fu.lastFundingRate());
         });
     client.onSettlementUpdate(
         su -> {
@@ -186,7 +186,7 @@ public final class FullTraderExample {
     System.out.println("Authenticated as user_uuid=" + uid + "  (session encrypted)");
 
     try {
-      client.subscribe("orders", "positions");
+      client.subscribe("orders", "positions", "funding_rate");
     } catch (GodarkException e) {
       System.err.println("Subscribe failed: " + e.getMessage());
       client.disconnect();
@@ -194,7 +194,7 @@ public final class FullTraderExample {
       return;
     }
 
-    System.out.println("Subscribed to order + position updates");
+    System.out.println("Subscribed to order + position + funding updates");
     try {
       TimeUnit.MILLISECONDS.sleep(350);
     } catch (InterruptedException ie) {

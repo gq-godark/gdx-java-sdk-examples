@@ -1,15 +1,15 @@
 package exchange.godark.examples;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import exchange.godark.examples.support.ExamplesEnv;
 import godark.GodarkException;
 import godark.GodarkRestClient;
 import godark.Types;
 
 /**
- * Minimal GodarkRestClient demo — auth + account reads.
+ * Minimal GodarkRestClient demo — public market-data GETs + REST auth + encrypted snapshots.
  *
- * <p>Encrypted place/cancel/modify/updateLeverage require GodarkClient (WebSocket / HPKE); see
- * Quickstart / FullTraderExample.
+ * <p>For encrypted place/modify/cancel over REST (one-shot HPKE), see RestTraderExample.
  *
  * <pre>
  *   ./gradlew -p examples runRestClientExample
@@ -48,41 +48,41 @@ public final class RestClientExample {
     }
 
     try (GodarkRestClient client = builder.build()) {
+      JsonNode rates = client.getFundingRates();
+      JsonNode oi = client.getOpenInterest();
+      JsonNode vol = client.getVolume();
+      System.out.printf("funding_rates: %d symbols%n", rates.size());
+      System.out.printf("open_interest: %d symbols%n", oi.size());
+      JsonNode syms = vol.get("symbols");
+      int symCount = syms != null && syms.isArray() ? syms.size() : 0;
+      System.out.printf(
+          "volume: total_24h=%s symbols=%d%n", vol.path("total_volume_24h").asText("?"), symCount);
+
       System.out.println("connecting (REST auth/token)...");
       client.connect();
+      System.out.printf(
+          "identity user_uuid=%s scope=%s%n",
+          client.userUuid().orElse("?"), client.tokenScope().orElse(""));
 
       try {
-        Types.MeProfile me = client.getMe();
-        System.out.printf(
-            "me: id=%s wallet=%s tier=%s%n", me.id(), me.walletAddress(), me.tier());
+        Types.OpenOrdersSnapshot open = client.getOpenOrders();
+        System.out.printf("open_orders: %d rows%n", open.rows().size());
       } catch (GodarkException e) {
-        System.out.println("getMe skipped: " + e.getMessage());
+        System.out.println("getOpenOrders skipped: " + e.getMessage());
       }
 
       try {
-        Types.LeverageSettings lev = client.getLeverage();
-        System.out.printf("leverage settings: %d entries%n", lev.settings().size());
-        lev.settings().stream()
-            .limit(5)
-            .forEach(
-                row ->
-                    System.out.printf(
-                        "  symbolId=%d leverage=%d%n", row.symbolId(), row.leverage()));
+        Types.AccountMarginUpdate account = client.getAccount();
+        if (account.account() != null) {
+          System.out.printf(
+              "account total_collateral=%s%n", account.account().totalCollateral());
+        }
       } catch (GodarkException e) {
-        System.out.println("getLeverage skipped: " + e.getMessage());
-      }
-
-      try {
-        Types.Balance bal = client.getMyBalance();
-        System.out.printf(
-            "balance: shielded_raw=%d wallet_ui=%s%n",
-            bal.shieldedBalanceRaw(), bal.walletUsdtUi());
-      } catch (GodarkException e) {
-        System.out.println("getMyBalance skipped: " + e.getMessage());
+        System.out.println("getAccount skipped: " + e.getMessage());
       }
 
       System.out.println("REST reads succeeded.");
-      System.out.println("Encrypted trading requires GodarkClient over WebSocket (HPKE).");
+      System.out.println("For REST trading (place/modify/cancel), see RestTraderExample.");
     }
   }
 }

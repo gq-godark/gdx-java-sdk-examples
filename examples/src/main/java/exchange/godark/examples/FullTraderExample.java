@@ -158,7 +158,7 @@ public final class FullTraderExample {
           counts.merge("funding_rate", 1, Integer::sum);
           System.out.printf(
               "FUND   symbol=%d  rate=%s  last=%s%n",
-              fu.symbolId(), fu.fundingRate(), fu.lastFundingRate());
+              fu.symbolId(), fu.currentRate(), fu.predictedRate());
         });
     client.onSettlementUpdate(
         su -> {

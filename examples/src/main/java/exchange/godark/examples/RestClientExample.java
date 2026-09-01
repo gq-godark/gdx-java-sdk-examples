@@ -81,6 +81,18 @@ public final class RestClientExample {
         System.out.println("getAccount skipped: " + e.getMessage());
       }
 
+      try {
+        Types.LeverageSettings lev = client.getLeverage();
+        System.out.printf("leverage settings: %d entries%n", lev.settings().size());
+        System.out.println("  (WS push: onLeverageSettings in FullTraderExample.java)");
+        for (int i = 0; i < lev.settings().size() && i < 5; i++) {
+          Types.LeverageSetting row = lev.settings().get(i);
+          System.out.printf("  symbol_id=%d leverage=%d%n", row.symbolId(), row.leverage());
+        }
+      } catch (GodarkException e) {
+        System.out.println("getLeverage skipped: " + e.getMessage());
+      }
+
       System.out.println("REST reads succeeded.");
       System.out.println("For REST trading (place/modify/cancel), see RestTraderExample.");
     }

@@ -89,8 +89,8 @@ public final class Quickstart {
             ack.orderId(), sellPx, mark);
         // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).
         Thread.sleep(500);
-        Types.OrderAck cancelAck = client.cancelOrder(ack.orderId(), SYMBOL);
-        System.out.println("Cancel OK — order_id=" + cancelAck.orderId());
+        Types.CountAck cancelAck = client.cancelAllOrders(SYMBOL);
+        System.out.println("cancel_all OK — count=" + cancelAck.count());
       } catch (GodarkException e) {
         System.err.println("Order rejected: " + e.getMessage());
         System.exit(1);

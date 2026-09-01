@@ -25,6 +25,10 @@ public final class RestTraderExample {
     return 78000.0;
   }
 
+  private static double restLimitPrice() {
+    return livePrice() - 5000.0;
+  }
+
   public static void main(String[] args) throws Exception {
     String cid = ExamplesEnv.first("GODARK_API_KEY_ID", "GDX_API_KEY_ID");
     String sec = ExamplesEnv.first("GODARK_API_SECRET", "GDX_API_SECRET");
@@ -80,13 +84,13 @@ public final class RestTraderExample {
         System.out.println("account total_collateral=" + account.account().totalCollateral());
       }
 
-      double price = livePrice();
+      double price = restLimitPrice();
       Types.OrderAck placed =
           client.placeOrder(
               "BTC-USDC-PERP",
               "BUY",
               "LIMIT",
-              0.001,
+              0.01,
               price,
               "GTC",
               false,

@@ -2,6 +2,7 @@ package exchange.godark.examples;
 
 import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
+import godark.Enums;
 import godark.Environment;
 import godark.GodarkClient;
 import godark.GodarkException;
@@ -165,6 +166,18 @@ public final class FullTraderExample {
           counts.merge("settlement", 1, Integer::sum);
           System.out.printf("SETTLE batch=%d  status=%s%n", su.batchId(), su.status());
         });
+    client.onLeverageSettings(
+        ls -> {
+          counts.merge("leverage_settings", 1, Integer::sum);
+          String rows =
+              ls.settings().stream()
+                  .limit(5)
+                  .map(r -> r.symbolId() + "=" + r.leverage() + "x")
+                  .reduce((a, row) -> a + ", " + row)
+                  .orElse("");
+          String suffix = ls.settings().size() > 5 ? "..." : "";
+          System.out.printf("LEVERAGE settings=[%s%s]%n", rows, suffix);
+        });
     client.onError(
         e -> {
           while (nonFatal.size() >= 32) {
@@ -316,7 +329,16 @@ public final class FullTraderExample {
     try {
       Types.OrderAck sellAck =
           client.placeOrder(
-              SYMBOL, "SELL", "LIMIT", 0.05, sellPx, "GTC", false, null, null);
+              SYMBOL,
+              "SELL",
+              "LIMIT",
+              0.05,
+              sellPx,
+              "GTC",
+              false,
+              null,
+              null,
+              new Types.PlaceOrderOptions(false, true, Enums.stpUnset(), null, null, null, null));
       System.out.println("SELL placed: order_id=" + sellAck.orderId());
       TimeUnit.MILLISECONDS.sleep(500);
       try {
@@ -389,18 +411,15 @@ public final class FullTraderExample {
     drainOrders("after MASS QUOTE", orderEvents);
 
     if (!restingIds.isEmpty()) {
-      System.out.printf("Batch-cancelling %d ladder orders (cleanup)...%n", restingIds.size());
+      System.out.println("cancel_all_orders (cleanup ladder)...");
       try {
-        Types.BatchCancelAck bc = client.batchCancel(SYMBOL, restingIds);
-        for (Types.BatchCancelLegResult r : bc.results()) {
-          System.out.printf(
-              "  cancel id=%s: cancelled=%s err=%s%n", r.orderId(), r.cancelled(), r.errorCode());
-        }
+        Types.CountAck ca = client.cancelAllOrders(SYMBOL);
+        System.out.printf("  cancel_all: count=%d ids=%s%n", ca.count(), ca.orderIds());
       } catch (GodarkException e) {
-        System.err.println("Batch cancel rejected: " + e.getMessage());
+        System.err.println("cancel_all rejected: " + e.getMessage());
       }
       TimeUnit.MILLISECONDS.sleep(500);
-      drainOrders("after BATCH CANCEL", orderEvents);
+      drainOrders("after CANCEL ALL", orderEvents);
     }
 
     // Demonstrate the batch-level post_only flag on a crossing leg. Price a BUY
@@ -479,7 +498,7 @@ public final class FullTraderExample {
     System.out.println("  Session complete");
     System.out.printf(
         "  Callback push counts: orders=%d positions=%d snapshots=%d health=%d balance=%d "
-            + "margin=%d funding=%d settle=%d%n",
+            + "margin=%d funding=%d settle=%d leverage=%d%n",
         counts.getOrDefault("order_update", 0),
         counts.getOrDefault("position_update", 0),
         counts.getOrDefault("positions_snapshot", 0),
@@ -487,7 +506,8 @@ public final class FullTraderExample {
         counts.getOrDefault("balance_update", 0),
         counts.getOrDefault("margin_alert", 0),
         counts.getOrDefault("funding_rate", 0),
-        counts.getOrDefault("settlement", 0));
+        counts.getOrDefault("settlement", 0),
+        counts.getOrDefault("leverage_settings", 0));
     for (String msg : nonFatal) {
       System.out.println("SDK ERROR (non-fatal): " + msg);
     }

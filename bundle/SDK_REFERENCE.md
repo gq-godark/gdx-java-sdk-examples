@@ -89,7 +89,7 @@ Use the bundle-root `.env.example` as the template (copy to `.env`, or to
 |--------|-----------|---------|
 | `placeOrder` | `OrderAck placeOrder(String symbol, String side, String orderType, double quantity, Double price, String timeInForce, boolean aon, Double minFillSize, Long expiryTime) throws GodarkException` | Place encrypted order |
 | `cancelOrder` | `OrderAck cancelOrder(String orderId, String symbol) throws GodarkException` | Cancel by id (overload defaults symbol to `BTC-USDC-PERP`) |
-| `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, Double newPrice, Double newQuantity) throws GodarkException` | Modify price and/or quantity |
+| `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, Double newPrice, Double newQuantity, Double newTriggerPrice) throws GodarkException` | Modify price, quantity, and/or stop trigger |
 
 `side`, `orderType`, and `timeInForce` are **strings** at the command boundary
 (for example `"SELL"`, `"LIMIT"`, `"GTC"`). Stream updates use protobuf enums on

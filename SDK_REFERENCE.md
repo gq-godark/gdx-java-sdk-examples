@@ -127,7 +127,7 @@ consumer site.
 | `placeOrder` | `OrderAck placeOrder(String symbol, String side, String orderType, double quantity, Double price, String timeInForce, boolean aon, Double minFillSize, Long expiryTime) throws GodarkException` | Place encrypted order |
 | `updateLeverage` | `OrderAck updateLeverage(String symbol, int leverage) throws GodarkException` | Set per-symbol account leverage (place/massQuote inherit this) |
 | `cancelOrder` | `OrderAck cancelOrder(String orderId, String symbol) throws GodarkException` | Cancel by id (overload defaults symbol to `BTC-USDC-PERP`) |
-| `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, Double newPrice, Double newQuantity) throws GodarkException` | Modify price and/or quantity |
+| `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, Double newPrice, Double newQuantity, Double newTriggerPrice) throws GodarkException` | Modify price, quantity, and/or stop trigger |
 | `massQuote` | `MassQuoteAck massQuote(String symbol, List<MassQuoteLegInput> legs, Boolean postOnly) throws GodarkException` | Bulk cancel-replace ladder |
 
 `side`, `orderType`, and `timeInForce` are **strings** at the command boundary

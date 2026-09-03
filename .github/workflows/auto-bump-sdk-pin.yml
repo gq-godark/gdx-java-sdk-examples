@@ -16,10 +16,8 @@ name: Auto-bump SDK pin
 #   * local writer  — contents:write + pull-requests:write on this repo,
 #                     used by actions/checkout, the rolling branch push, and
 #                     gh pr view/create.
-#   * upstream read — contents:read on gdx-java-sdk + gdx-proto (gdx-proto is
-#                     a submodule of gdx-java-sdk and scripts/refresh_sdk.sh
-#                     runs `git submodule update --init --recursive` before
-#                     building shadowJar), used only for the upstream clone.
+#   * upstream read — contents:read on gdx-java-sdk + gdx-proto, used only for
+#                     the upstream SDK and proto checkouts.
 
 on:
   repository_dispatch:
@@ -87,7 +85,7 @@ jobs:
           echo "short=${SHA:0:7}" >> "$GITHUB_OUTPUT"
           echo "Vendoring gdx-java-sdk@${SHA}"
 
-      - name: Checkout upstream gdx-java-sdk at dispatched SHA (with proto submodule)
+      - name: Checkout upstream gdx-java-sdk at dispatched SHA
         uses: actions/checkout@v5
         with:
           repository: gq-godark/gdx-java-sdk
@@ -96,6 +94,21 @@ jobs:
           token: ${{ steps.app-token-upstream.outputs.token }}
           fetch-depth: 1
           submodules: recursive
+
+      - name: Checkout gdx-proto
+        uses: actions/checkout@v5
+        with:
+          repository: gq-godark/gdx-proto
+          path: gdx-proto
+          token: ${{ steps.app-token-upstream.outputs.token }}
+          fetch-depth: 1
+
+      - name: Ensure gdx-proto checkout is available
+        run: |
+          if [ ! -f gdx-proto/proto/gdx/common/v1/types.proto ]; then
+            echo "::error::gdx-proto/proto/gdx/common/v1/types.proto missing — ensure GDX_APP has contents:read on gq-godark/gdx-proto"
+            exit 1
+          fi
 
       - name: Set up JDK 17 (Temurin)
         uses: actions/setup-java@v4
@@ -106,6 +119,7 @@ jobs:
       - name: Refresh vendored artifacts
         env:
           UPSTREAM_SRC: ${{ github.workspace }}/upstream
+          GDX_PROTO_ROOT: ${{ github.workspace }}/gdx-proto/proto
         run: bash scripts/refresh_sdk.sh "${UPSTREAM_SRC}"
 
       - name: Detect drift on sdk/

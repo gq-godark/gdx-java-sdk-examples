@@ -2,6 +2,7 @@ package exchange.godark.examples;
 
 import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
+import godark.ConnectionException;
 import godark.Enums;
 import godark.Environment;
 import godark.GodarkClient;
@@ -50,7 +51,10 @@ public final class FullTraderExample {
         TransportConfig.DEFAULT
             .withAdditionalHeaders(headers)
             .withOpenTimeout(Duration.ofSeconds(10))
-            .withCommandTimeout(Duration.ofSeconds(10));
+            .withCommandTimeout(Duration.ofSeconds(10))
+            .withHeartbeatInterval(Duration.ofSeconds(30))
+            .withStaleTimeout(Duration.ofSeconds(120))
+            .withMissedHeartbeatLimit(2);
     if (GodarkClient.wsUrl(base).startsWith("wss://")
         && ExamplesEnv.truthy("GODARK_TLS_SKIP_VERIFY", "GDX_TLS_SKIP_VERIFY")) {
       transport = transport.withSslContext(InsecureSsl.context());
@@ -183,7 +187,14 @@ public final class FullTraderExample {
           while (nonFatal.size() >= 32) {
             nonFatal.removeFirst();
           }
-          nonFatal.addLast(String.valueOf(e.getMessage()));
+          String msg = String.valueOf(e.getMessage());
+          nonFatal.addLast(msg);
+          if (e instanceof ConnectionException && msg.contains("stale heartbeat")) {
+            System.err.println(
+                "STALE HEARTBEAT (non-fatal, auto-reconnect expected): " + msg);
+            return;
+          }
+          System.err.println("SDK ERROR (non-fatal): " + msg);
         });
 
     System.out.println("Connecting...");

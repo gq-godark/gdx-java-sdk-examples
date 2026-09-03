@@ -68,6 +68,29 @@ Typical variables:
 Use the bundle-root `.env.example` as the template (copy to `.env`, or to
 `examples/.env` when running Gradle from `examples/`).
 
+### WebSocket transport defaults
+
+`TransportConfig.DEFAULT` is tuned for long-running production clients:
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `heartbeatInterval()` | `30s` | JSON ping interval |
+| `staleTimeout()` | `120s` | Absolute silence cap before disconnect |
+| `missedHeartbeatLimit()` | `2` | Consecutive missed heartbeat intervals before disconnect |
+| `autoReconnect` (builder) | `true` | Reconnect with backoff after unexpected disconnect |
+
+`heartbeatInterval()` is not the disconnect budget. On stale disconnect the SDK reports a
+non-fatal `ConnectionException` via `onError` (message contains `stale heartbeat`), then
+closes the socket and auto-reconnects unless you called `disconnect()`.
+
+```java
+TransportConfig transport =
+    TransportConfig.DEFAULT
+        .withHeartbeatInterval(Duration.ofSeconds(30))
+        .withStaleTimeout(Duration.ofSeconds(120))
+        .withMissedHeartbeatLimit(2);
+```
+
 ## GodarkClient API
 
 **Package:** `godark` (`GodarkClient` is a concrete class; construct with

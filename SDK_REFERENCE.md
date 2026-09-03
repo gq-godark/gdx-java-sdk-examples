@@ -75,6 +75,45 @@ Typical variables:
 
 Use `.env.example` as the template when using the file-based examples layout.
 
+### WebSocket transport defaults
+
+`TransportConfig.DEFAULT` is tuned for long-running production clients:
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `heartbeatInterval()` | `30s` | JSON ping interval |
+| `staleTimeout()` | `120s` | Absolute silence cap before disconnect |
+| `missedHeartbeatLimit()` | `2` | Consecutive missed heartbeat intervals before disconnect |
+| `autoReconnect` (builder) | `true` | Reconnect with backoff after unexpected disconnect |
+
+`heartbeatInterval()` is **not** the disconnect budget. Disconnect happens when either
+`staleTimeout()` is exceeded or `missedHeartbeatLimit()` consecutive heartbeat intervals
+pass without inbound traffic (pong, push, or ack).
+
+On stale disconnect the SDK emits a non-fatal `ConnectionException` via `onError` (message
+contains `stale heartbeat`), closes the socket, and auto-reconnects unless you called
+`disconnect()`.
+
+```java
+TransportConfig transport =
+    TransportConfig.DEFAULT
+        .withHeartbeatInterval(Duration.ofSeconds(30))
+        .withStaleTimeout(Duration.ofSeconds(120))
+        .withMissedHeartbeatLimit(2);
+
+GodarkClient client =
+    GodarkClient.builder()
+        .autoReconnect(true)
+        .transport(transport)
+        .build();
+
+client.onReconnect(() -> { /* channels resubscribed */ });
+client.onError(
+    e -> {
+      // Log stale heartbeat, decrypt failures, queue overflow, etc.
+    });
+```
+
 ## Adding `godark` to your project
 
 In this repository, the example Gradle module depends on the vendored uber-JAR

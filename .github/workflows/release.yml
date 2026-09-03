@@ -30,7 +30,7 @@ jobs:
   #   GDX_APP_PRIVATE_KEY   — GitHub App private key (PEM)
   #
   # The app must be installed on gq-godark with read access to gdx-java-sdk
-  # AND gdx-proto (gdx-java-sdk uses gdx-proto via submodule).
+  # AND gdx-proto.
   # --------------------------------------------------------------------------
   build:
     name: Build JAR + examples zip
@@ -101,16 +101,18 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Ensure gdx-proto submodule is initialized
-        working-directory: upstream
-        env:
-          TOKEN: ${{ steps.app-token.outputs.token }}
+      - name: Checkout gdx-proto
+        uses: actions/checkout@v4
+        with:
+          repository: gq-godark/gdx-proto
+          path: gdx-proto
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 1
+
+      - name: Ensure gdx-proto checkout is available
         run: |
-          git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
-          git submodule sync --recursive
-          git submodule update --init --recursive --force
-          if [ ! -d gdx-proto/proto ]; then
-            echo "::error::gdx-proto/proto missing after submodule init — ensure GDX_APP has contents:read on gq-godark/gdx-proto"
+          if [ ! -f gdx-proto/proto/gdx/common/v1/types.proto ]; then
+            echo "::error::gdx-proto/proto/gdx/common/v1/types.proto missing — ensure GDX_APP has contents:read on gq-godark/gdx-proto"
             exit 1
           fi
 
@@ -131,6 +133,7 @@ jobs:
       - name: Build zip via scripts/package.sh
         env:
           UPSTREAM_SRC: ${{ github.workspace }}/upstream
+          GDX_PROTO_ROOT: ${{ github.workspace }}/gdx-proto/proto
         run: bash scripts/package.sh ${{ steps.ver.outputs.bundle_name }}
 
       - name: Recipient smoke (unzip + runQuickstart, no creds)

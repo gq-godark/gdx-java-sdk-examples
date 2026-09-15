@@ -335,6 +335,31 @@ public final class FullTraderExample {
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after MODIFY", orderEvents);
 
+    // Market IOC with explicit walk cap: 50 bps = 0.5% of mark (UI default).
+    // Omit slippageBps → venue max (localnet 5%).
+    System.out.println("Placing market IOC BUY qty=0.01 with slippageBps=50 (0.5% walk)...");
+    try {
+      Types.OrderAck mktAck =
+          client.placeOrder(
+              SYMBOL,
+              "BUY",
+              "MARKET",
+              0.01,
+              null,
+              "IOC",
+              false,
+              null,
+              null,
+              new Types.PlaceOrderOptions(
+                  false, false, Enums.stpUnset(), null, null, null, null, 50));
+      System.out.println("MARKET BUY placed: order_id=" + mktAck.orderId());
+    } catch (GodarkException e) {
+      System.err.println("Market BUY rejected (continuing): " + e.getMessage());
+    }
+
+    TimeUnit.SECONDS.sleep(1);
+    drainOrders("after MARKET BUY", orderEvents);
+
     double sellPx = Math.round(mark * 1.03 * 10.0) / 10.0;
     System.out.printf("Placing limit SELL @ %.1f...%n", sellPx);
     try {

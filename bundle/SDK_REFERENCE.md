@@ -174,6 +174,12 @@ Only one encrypted command (`placeOrder`, `cancelOrder`, `modifyOrder`) should
 be in flight at a time. Complete each call (or handle its exception) before
 issuing the next.
 
+`Types.PlaceOrderOptions` (optional last argument on `placeOrder`) includes
+`reduceOnly`, `postOnly`, `stpMode`, `pegOffsetBps`, `triggerPrice`,
+`takeProfitPrice`, `stopLossPrice`, and `slippageBps`. Omit `slippageBps` (null)
+to use the venue max walk cap (localnet 5%); typical explicit values are 50–500
+bps (0.5%–5%).
+
 ## Core Types
 
 **Package:** `godark` — value records in `godark.Types`.

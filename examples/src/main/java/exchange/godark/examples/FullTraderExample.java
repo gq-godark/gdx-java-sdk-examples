@@ -308,7 +308,7 @@ public final class FullTraderExample {
     double mark = liveMarkPrice();
     double buyPx = Math.round(mark * 0.997 * 10.0) / 10.0;
     System.out.printf("Placing limit BUY @ %.1f (mark=%.1f)...%n", buyPx, mark);
-    Types.OrderAck buyAck;
+    Types.OrderAck buyAck = null;
     try {
       buyAck =
           client.placeOrder(
@@ -316,24 +316,52 @@ public final class FullTraderExample {
       System.out.printf(
           "BUY placed: order_id=%s  sequence=%s%n", buyAck.orderId(), buyAck.sequence());
     } catch (GodarkException e) {
-      System.err.println("BUY rejected: " + e.getMessage());
-      return;
+      System.err.println("BUY rejected (continuing to market Place): " + e.getMessage());
     }
 
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after BUY", orderEvents);
 
-    double modifyPx = Math.round(mark * 0.996 * 10.0) / 10.0;
-    System.out.printf("Modifying order price to %.1f...%n", modifyPx);
-    try {
-      Types.OrderAck modAck = client.modifyOrder(buyAck.orderId(), SYMBOL, modifyPx, null);
-      System.out.println("Modified: order_id=" + modAck.orderId());
-    } catch (GodarkException e) {
-      System.err.println("Modify rejected: " + e.getMessage());
+    if (buyAck != null) {
+      double modifyPx = Math.round(mark * 0.996 * 10.0) / 10.0;
+      System.out.printf("Modifying order price to %.1f...%n", modifyPx);
+      try {
+        Types.OrderAck modAck = client.modifyOrder(buyAck.orderId(), SYMBOL, modifyPx, null);
+        System.out.println("Modified: order_id=" + modAck.orderId());
+      } catch (GodarkException e) {
+        System.err.println("Modify rejected: " + e.getMessage());
+      }
+      TimeUnit.SECONDS.sleep(1);
+      drainOrders("after MODIFY", orderEvents);
     }
 
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after MODIFY", orderEvents);
+
+    // Market IOC with explicit walk cap: 50 bps = 0.5% of mark (UI default).
+    // Omit slippageBps → venue max (localnet 5%).
+    System.out.println("Placing market IOC BUY qty=0.01 with slippageBps=50 (0.5% walk)...");
+    try {
+      Types.OrderAck mktAck =
+          client.placeOrder(
+              SYMBOL,
+              "BUY",
+              "MARKET",
+              0.01,
+              null,
+              "IOC",
+              false,
+              null,
+              null,
+              new Types.PlaceOrderOptions(
+                  false, false, Enums.stpUnset(), null, null, null, null, 50));
+      System.out.println("MARKET BUY placed: order_id=" + mktAck.orderId());
+    } catch (GodarkException e) {
+      System.err.println("Market BUY rejected (continuing): " + e.getMessage());
+    }
+
+    TimeUnit.SECONDS.sleep(1);
+    drainOrders("after MARKET BUY", orderEvents);
 
     double sellPx = Math.round(mark * 1.03 * 10.0) / 10.0;
     System.out.printf("Placing limit SELL @ %.1f...%n", sellPx);
@@ -495,12 +523,14 @@ public final class FullTraderExample {
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after post_only mass quotes", orderEvents);
 
-    System.out.println("Cancelling original BUY (cleanup)...");
-    try {
-      client.cancelOrder(buyAck.orderId(), SYMBOL);
-      System.out.println("Original BUY cancelled");
-    } catch (GodarkException e) {
-      System.out.println("Original BUY already filled or cancelled");
+    if (buyAck != null) {
+      System.out.println("Cancelling original BUY (cleanup)...");
+      try {
+        client.cancelOrder(buyAck.orderId(), SYMBOL);
+        System.out.println("Original BUY cancelled");
+      } catch (GodarkException e) {
+        System.out.println("Original BUY already filled or cancelled");
+      }
     }
 
     TimeUnit.MILLISECONDS.sleep(350);

@@ -304,6 +304,12 @@ Note: the wire enum includes additional order types for compatibility, but
 this MM distribution supports placing only **`MARKET`** and **`LIMIT`**
 orders.
 
+`Types.PlaceOrderOptions` (optional last argument on `placeOrder`) includes
+`reduceOnly`, `postOnly`, `stpMode`, `pegOffsetBps`, `triggerPrice`,
+`takeProfitPrice`, `stopLossPrice`, and `slippageBps`. Omit `slippageBps` (null)
+to use the venue max walk cap (localnet 5%); typical explicit values are 50–500
+bps (0.5%–5%).
+
 ## Errors
 
 ### GodarkException variants

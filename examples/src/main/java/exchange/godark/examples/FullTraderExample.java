@@ -308,7 +308,7 @@ public final class FullTraderExample {
     double mark = liveMarkPrice();
     double buyPx = Math.round(mark * 0.997 * 10.0) / 10.0;
     System.out.printf("Placing limit BUY @ %.1f (mark=%.1f)...%n", buyPx, mark);
-    Types.OrderAck buyAck;
+    Types.OrderAck buyAck = null;
     try {
       buyAck =
           client.placeOrder(
@@ -316,20 +316,23 @@ public final class FullTraderExample {
       System.out.printf(
           "BUY placed: order_id=%s  sequence=%s%n", buyAck.orderId(), buyAck.sequence());
     } catch (GodarkException e) {
-      System.err.println("BUY rejected: " + e.getMessage());
-      return;
+      System.err.println("BUY rejected (continuing to market Place): " + e.getMessage());
     }
 
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after BUY", orderEvents);
 
-    double modifyPx = Math.round(mark * 0.996 * 10.0) / 10.0;
-    System.out.printf("Modifying order price to %.1f...%n", modifyPx);
-    try {
-      Types.OrderAck modAck = client.modifyOrder(buyAck.orderId(), SYMBOL, modifyPx, null);
-      System.out.println("Modified: order_id=" + modAck.orderId());
-    } catch (GodarkException e) {
-      System.err.println("Modify rejected: " + e.getMessage());
+    if (buyAck != null) {
+      double modifyPx = Math.round(mark * 0.996 * 10.0) / 10.0;
+      System.out.printf("Modifying order price to %.1f...%n", modifyPx);
+      try {
+        Types.OrderAck modAck = client.modifyOrder(buyAck.orderId(), SYMBOL, modifyPx, null);
+        System.out.println("Modified: order_id=" + modAck.orderId());
+      } catch (GodarkException e) {
+        System.err.println("Modify rejected: " + e.getMessage());
+      }
+      TimeUnit.SECONDS.sleep(1);
+      drainOrders("after MODIFY", orderEvents);
     }
 
     TimeUnit.SECONDS.sleep(1);
@@ -520,12 +523,14 @@ public final class FullTraderExample {
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after post_only mass quotes", orderEvents);
 
-    System.out.println("Cancelling original BUY (cleanup)...");
-    try {
-      client.cancelOrder(buyAck.orderId(), SYMBOL);
-      System.out.println("Original BUY cancelled");
-    } catch (GodarkException e) {
-      System.out.println("Original BUY already filled or cancelled");
+    if (buyAck != null) {
+      System.out.println("Cancelling original BUY (cleanup)...");
+      try {
+        client.cancelOrder(buyAck.orderId(), SYMBOL);
+        System.out.println("Original BUY cancelled");
+      } catch (GodarkException e) {
+        System.out.println("Original BUY already filled or cancelled");
+      }
     }
 
     TimeUnit.MILLISECONDS.sleep(350);

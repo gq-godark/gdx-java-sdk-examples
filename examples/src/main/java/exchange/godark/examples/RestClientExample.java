@@ -7,9 +7,9 @@ import godark.GodarkRestClient;
 import godark.Types;
 
 /**
- * Minimal GodarkRestClient demo — public market-data GETs + REST auth + encrypted snapshots.
+ * Minimal GodarkRestClient demo — public market-data GETs, REST auth, and account snapshots.
  *
- * <p>For encrypted place/modify/cancel over REST (one-shot HPKE), see RestTraderExample.
+ * <p>Encrypted trading is WebSocket-only; see Quickstart or FullTraderExample.
  *
  * <pre>
  *   ./gradlew -p examples runRestClientExample
@@ -94,7 +94,7 @@ public final class RestClientExample {
       }
 
       System.out.println("REST reads succeeded.");
-      System.out.println("For REST trading (place/modify/cancel), see RestTraderExample.");
+      System.out.println("For HPKE WebSocket trading, see Quickstart or FullTraderExample.");
     }
   }
 }

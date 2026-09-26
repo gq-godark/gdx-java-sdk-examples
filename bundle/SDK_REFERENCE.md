@@ -3,7 +3,7 @@
 This reference describes the API surface used by the bundled examples
 shipped in this distribution. The examples use WebSocket encrypted trading
 via `godark.GodarkClient`. Encrypted REST trading is not supported — all
-order flow (place / modify / cancel / mass-quote) runs over the Noise XK
+order flow (place / modify / cancel / mass-quote) runs over the HPKE
 WebSocket client. A standalone market-data client also ships in the JAR but
 is outside the bundled examples in this distribution.
 
@@ -24,6 +24,7 @@ public class Bot {
             .baseUrl("wss://api.godark-dex.com")
             .apiKeyId("gdk_...")
             .apiSecret("...")
+            .passphrase("...")
             .build()) {
       client.connect();
       Types.OrderAck ack =
@@ -62,7 +63,7 @@ Typical variables:
 - `GODARK_API_KEY_ID` (required for id/secret auth)
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
-- `GDX_NOISE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`
+- `GDX_HPKE_STATIC_PUBLIC_KEY` (required for localnet/custom encrypted WebSocket trading) — 64 hex chars; aliases `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`
 - `GODARK_EDGE_URL` (optional host origin; client appends `/ws/v1`)
 
 Use the bundle-root `.env.example` as the template (copy to `.env`, or to
@@ -157,10 +158,10 @@ client.onSettlementUpdate(s -> { });
 | Push | Field highlights | Typical use |
 |------|------------------|-------------|
 | `PositionsSnapshot` | `rows()` (`PositionRow` with `symbolId`, `side`, `size`, `entryPrice`, `markPrice`, …), `source`, `serverTimestamp` | Hydrate open positions on connect; periodic refresh |
-| `SystemHealthUpdate` | `totalNodes`, `ready`, `degraded`, `acceptingOrders` | Cluster status; pause submissions if not accepting |
+| `SystemHealthUpdate` | `componentId`, `state`, `serving`, `cause`, `updatedAtNanos`, `sequence`, `schemaVersion` | Component health |
 | `BalanceUpdate` | `shieldedBalanceRaw` | Wallet / equity after fills or settlement |
-| `MarginAlert` | `symbolId`, `tier`, `marginRatioBps`, `liquidationPriceBps`, `recovered` | Margin banner per owner and symbol |
-| `FundingRateUpdate` | `symbolId`, `currentRate`, `predictedRate`, `nextFundingTime` | Funding ticker / metadata |
+| `MarginAlert` | `owner`, `symbolId`, `tier`, `marginRatioBps`, `markPrice`, `liquidationPrice`, `recovered` | Margin banner per owner and symbol |
+| `FundingRateUpdate` | `symbolId`, `fundingRate`, `lastFundingRate`, `timestamp` | Funding ticker / metadata |
 | `SettlementUpdate` | `batchId`, `status`, `txSignature`, `affectedUserUuids` | Batch reconciliation |
 
 Each stream uses a single bounded queue per type (default capacity from
@@ -258,7 +259,7 @@ module's `build.gradle.kts`; adjust if the JAR lives elsewhere):
 
 ```kotlin
 dependencies {
-  implementation(files("sdk/lib/godark-0.1.0-all.jar"))
+  implementation(files("sdk/lib/godark-0.2.0-all.jar"))
 }
 ```
 

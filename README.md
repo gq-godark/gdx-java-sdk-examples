@@ -62,7 +62,7 @@ Required:
 Optional:
 
 - `GODARK_EDGE_URL` — override the edge URL (default: public testnet `wss://api.godark-dex.com` via the SDK Testnet environment preset).
-- `GDX_HPKE_STATIC_PUBLIC_KEY` — sequencer HPKE static public key (64 hex). Required for **localnet/devnet** encrypted trading; legacy `GDX_NOISE_*` env names are still accepted. Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`.
+- `GDX_HPKE_STATIC_PUBLIC_KEY` — sequencer HPKE static public key (64 hex). Required for **localnet/custom** encrypted trading; hosted testnet/devnet pins are baked in. Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`.
 - `GODARK_USER_UUID` — some local edges need an explicit UUID from auth.
 - `GODARK_TLS_SKIP_VERIFY` — set to `1` / `true` for dev TLS on `wss://`.
 

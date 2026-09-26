@@ -316,7 +316,7 @@ public final class FullTraderExample {
       System.out.printf(
           "BUY placed: order_id=%s  sequence=%s%n", buyAck.orderId(), buyAck.sequence());
     } catch (GodarkException e) {
-      System.err.println("BUY rejected (continuing to market Place): " + e.getMessage());
+      System.err.println("BUY rejected (continuing to market order): " + e.getMessage());
     }
 
     TimeUnit.SECONDS.sleep(1);
@@ -334,9 +334,6 @@ public final class FullTraderExample {
       TimeUnit.SECONDS.sleep(1);
       drainOrders("after MODIFY", orderEvents);
     }
-
-    TimeUnit.SECONDS.sleep(1);
-    drainOrders("after MODIFY", orderEvents);
 
     // Market IOC with explicit walk cap: 50 bps = 0.5% of mark (UI default).
     // Omit slippageBps → venue max (localnet 5%).

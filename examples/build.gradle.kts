@@ -35,11 +35,7 @@ val exampleRuns =
         ExampleRun(
             "RestClientExample",
             "exchange.godark.examples.RestClientExample",
-            "REST auth + account reads + public market-data GETs"),
-        ExampleRun(
-            "RestTraderExample",
-            "exchange.godark.examples.RestTraderExample",
-            "REST auth + encrypted snapshots + place/modify/cancel"))
+            "REST auth + account reads + public market-data GETs"))
 
 exampleRuns.forEach { ex ->
     tasks.register<JavaExec>("run${ex.taskSuffix}") {

@@ -46,7 +46,7 @@ Public testnet needs only the three credential keys above for hosted testnet; lo
 Optional:
 
 - `GODARK_EDGE_URL` — override the edge URL.
-- `GDX_NOISE_STATIC_PUBLIC_KEY` — override the sequencer HPKE pin (**not required for testnet**). Aliases: `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`.
+- `GDX_HPKE_STATIC_PUBLIC_KEY` — override the sequencer HPKE pin (**not required for testnet**). Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`.
 
 ```bash
 cp .env.example .env
@@ -77,7 +77,7 @@ Add the JAR to your Gradle module (use the filename under `sdk/lib/`):
 
 ```kotlin
 dependencies {
-  implementation(files("sdk/lib/godark-0.1.0-all.jar"))
+  implementation(files("sdk/lib/godark-0.2.0-all.jar"))
 }
 ```
 
@@ -93,8 +93,9 @@ public class MyBot {
   public static void main(String[] args) throws GodarkException {
     String kid = System.getenv("GODARK_API_KEY_ID");
     String sec = System.getenv("GODARK_API_SECRET");
-    if (kid == null || sec == null) {
-      System.err.println("Set GODARK_API_KEY_ID and GODARK_API_SECRET");
+    String pass = System.getenv("GODARK_PASSPHRASE");
+    if (kid == null || sec == null || pass == null) {
+      System.err.println("Set GODARK_API_KEY_ID, GODARK_API_SECRET and GODARK_PASSPHRASE");
       System.exit(1);
     }
     String base =
@@ -103,7 +104,12 @@ public class MyBot {
             .orElse("wss://api.godark-dex.com");
 
     try (GodarkClient client =
-        GodarkClient.builder().baseUrl(base).apiKeyId(kid).apiSecret(sec).build()) {
+        GodarkClient.builder()
+            .baseUrl(base)
+            .apiKeyId(kid)
+            .apiSecret(sec)
+            .passphrase(pass)
+            .build()) {
       client.connect();
       Types.OrderAck ack =
           client.placeOrder(

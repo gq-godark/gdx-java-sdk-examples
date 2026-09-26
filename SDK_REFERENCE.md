@@ -13,7 +13,7 @@ sourcing-from-git instructions).
 
 > Scope: the MM examples use **WebSocket encrypted trading** via
 > `godark.GodarkClient`. Encrypted REST trading is not supported — all
-> order flow (place / modify / cancel / mass-quote) runs over the Noise XK
+> order flow (place / modify / cancel / mass-quote) runs over the HPKE
 > WebSocket client. A standalone market-data client also ships in the JAR
 > but is outside the bundled examples in this distribution.
 > Order placement support is limited to `MARKET` and `LIMIT`.
@@ -70,7 +70,7 @@ Typical variables:
 - `GODARK_API_KEY_ID` (required for id/secret auth)
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
-- `GDX_NOISE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`
+- `GDX_HPKE_STATIC_PUBLIC_KEY` (required for localnet/custom encrypted WebSocket trading) — 64 hex chars; aliases `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`
 - `GODARK_EDGE_URL` (optional host origin; client appends `/ws/v1`)
 
 Use `.env.example` as the template when using the file-based examples layout.
@@ -121,7 +121,7 @@ under `sdk/lib/`:
 
 ```kotlin
 dependencies {
-  implementation(files("../sdk/lib/godark-0.1.0-all.jar"))
+  implementation(files("../sdk/lib/godark-0.2.0-all.jar"))
 }
 ```
 
@@ -212,10 +212,10 @@ client.onSettlementUpdate(s -> { });
 | Push | Field highlights | Typical use |
 |------|------------------|-------------|
 | `PositionsSnapshot` | `rows()` (`PositionRow` with `symbolId`, `side`, `size`, `entryPrice`, `markPrice`, …), `source`, `serverTimestamp` | Hydrate open positions on connect; periodic refresh |
-| `SystemHealthUpdate` | `totalNodes`, `ready`, `degraded`, `acceptingOrders` | Cluster status; pause submissions if not accepting |
+| `SystemHealthUpdate` | `componentId`, `state`, `serving`, `cause`, `updatedAtNanos`, `sequence`, `schemaVersion` | Component health |
 | `BalanceUpdate` | `shieldedBalanceRaw` | Wallet / equity after fills or settlement |
-| `MarginAlert` | `symbolId`, `tier`, `marginRatioBps`, `liquidationPriceBps`, `recovered` | Margin banner per owner and symbol |
-| `FundingRateUpdate` | `symbolId`, `currentRate`, `predictedRate`, `nextFundingTime` | Funding ticker / metadata |
+| `MarginAlert` | `owner`, `symbolId`, `tier`, `marginRatioBps`, `markPrice`, `liquidationPrice`, `recovered` | Margin banner per owner and symbol |
+| `FundingRateUpdate` | `symbolId`, `fundingRate`, `lastFundingRate`, `timestamp` | Funding ticker / metadata |
 | `SettlementUpdate` | `batchId`, `status`, `txSignature`, `affectedUserUuids` | Batch reconciliation |
 
 Each stream uses a single bounded queue per type (default capacity from
@@ -277,10 +277,10 @@ the `serverTimestamp`.
 
 | Type | Notable accessors |
 |------|-------------------|
-| `Types.SystemHealthUpdate` | `totalNodes`, `acceptingOrders`, `ready`, `degraded`, `exhausted`, `warming`, `draining`, `waiting` |
+| `Types.SystemHealthUpdate` | `componentId`, `state`, `serving`, `cause`, `updatedAtNanos`, `sequence`, `schemaVersion` |
 | `Types.BalanceUpdate` | `userUuid`, `shieldedBalanceRaw`, `timestamp` |
-| `Types.MarginAlert` | `owner`, `symbolId`, `tier`, `marginRatioBps`, `markPriceBps`, `liquidationPriceBps`, `stateVersion`, `recovered`, `ts` |
-| `Types.FundingRateUpdate` | `symbolId`, `currentRate`, `predictedRate`, `nextFundingTime`, `timestamp` |
+| `Types.MarginAlert` | `owner`, `symbolId`, `tier`, `marginRatioBps`, `markPrice`, `liquidationPrice`, `stateVersion`, `recovered`, `ts` |
+| `Types.FundingRateUpdate` | `symbolId`, `fundingRate`, `lastFundingRate`, `timestamp` |
 | `Types.SettlementUpdate` | `batchId`, `status` (`SettlementBatchStatus`), `txSignature`, `timestamp`, `affectedUserUuids` |
 
 ## Enums
@@ -374,7 +374,7 @@ module's `build.gradle.kts`; adjust if the JAR lives elsewhere):
 
 ```kotlin
 dependencies {
-  implementation(files("sdk/lib/godark-0.1.0-all.jar"))
+  implementation(files("sdk/lib/godark-0.2.0-all.jar"))
 }
 ```
 
@@ -454,7 +454,7 @@ The `godark` SDK is vendored as a fat JAR under `sdk/`:
 sdk/
 ├── UPSTREAM_REF              # exact upstream commit SHA the JAR was built from
 ├── lib/
-│   └── godark-0.1.0-all.jar  # shaded uber-JAR (no private Maven registry needed)
+│   └── godark-0.2.0-all.jar  # shaded uber-JAR (no private Maven registry needed)
 └── shared/
     └── symbols.json          # canonical perp symbol table snapshot
 ```
@@ -493,4 +493,6 @@ SDK pushes.
 
 ## RestClient example
 
-`GodarkRestClient` is exercised by `rest_client_example` / `rest-client-example`: REST auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. Encrypted place/cancel/modify/update-leverage remain WebSocket-only via `GodarkClient`.
+`GodarkRestClient` is exercised by `runRestClientExample`: REST auth, `/auth/me`,
+account snapshots, leverage reads, and public funding/OI/volume GETs. Encrypted
+place/cancel/modify/update-leverage remain WebSocket-only via `GodarkClient`.

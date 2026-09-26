@@ -94,9 +94,9 @@ public final class FullTraderExample {
     if (baseOverride != null && !baseOverride.isBlank()) {
       b.baseUrl(baseOverride);
     }
-    String uidCfg = ExamplesEnv.first("GODARK_USER_UUID", "GDX_USER_UUID");
-    if (uidCfg != null && !uidCfg.isBlank()) {
-      b.userUuid(uidCfg);
+    String accountCfg = ExamplesEnv.first("GODARK_ACCOUNT", "GDX_ACCOUNT");
+    if (accountCfg != null && !accountCfg.isBlank()) {
+      b.account(accountCfg);
     }
 
     GodarkClient client = b.build();
@@ -206,8 +206,8 @@ public final class FullTraderExample {
       return;
     }
 
-    String uid = client.userUuid().orElse("");
-    System.out.println("Authenticated as user_uuid=" + uid + "  (session encrypted)");
+    String account = client.account().orElse("");
+    System.out.println("Authenticated as account=" + account + "  (session encrypted)");
 
     try {
       client.subscribe("orders", "positions");

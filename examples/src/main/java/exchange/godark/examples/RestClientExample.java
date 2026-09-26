@@ -73,9 +73,9 @@ public final class RestClientExample {
 
       try {
         Types.AccountMarginUpdate account = client.getAccount();
-        if (account.account() != null) {
+        if (account.summary() != null) {
           System.out.printf(
-              "account total_collateral=%s%n", account.account().totalCollateral());
+              "account total_collateral=%s%n", account.summary().totalCollateral());
         }
       } catch (GodarkException e) {
         System.out.println("getAccount skipped: " + e.getMessage());

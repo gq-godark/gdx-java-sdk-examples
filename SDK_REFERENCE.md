@@ -71,6 +71,7 @@ Typical variables:
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
 - `GDX_HPKE_STATIC_PUBLIC_KEY` (required for localnet/custom encrypted WebSocket trading) — 64 hex chars; aliases `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`
+- `GODARK_ACCOUNT` (optional) — base58 fallback for custom edges that omit `account` from auth
 - `GODARK_EDGE_URL` (optional host origin; client appends `/ws/v1`)
 
 Use `.env.example` as the template when using the file-based examples layout.
@@ -157,7 +158,7 @@ consumer site.
 | `disconnect` | `void disconnect()` | Close socket and reset session |
 | `logout` | `void logout() throws GodarkException` | Logout then disconnect |
 | `close` | `void close()` | `AutoCloseable` — delegates to `disconnect()` |
-| `userUuid` | `Optional<String> userUuid()` | Authenticated user id after connect |
+| `account` | `Optional<String> account()` | Authenticated base58 L2 account after connect |
 
 ### Trading commands
 
@@ -260,7 +261,7 @@ preserve precision; status/lifecycle fields use the protobuf enums under
 Per-fill delta. Use this stream to drive incremental P&L / position accounting
 between `PositionsSnapshot` refreshes.
 
-Record fields include `userUuid`, `symbolId`, `side`, `updateType`, `size`,
+Record fields include `account`, `symbolId`, `side`, `updateType`, `size`,
 `entryPrice`, `previousSize`, `fillPrice`, `fillQty`, `correlationId`,
 `timestamp`.
 
@@ -278,7 +279,7 @@ the `serverTimestamp`.
 | Type | Notable accessors |
 |------|-------------------|
 | `Types.SystemHealthUpdate` | `componentId`, `state`, `serving`, `cause`, `updatedAtNanos`, `sequence`, `schemaVersion` |
-| `Types.BalanceUpdate` | `userUuid`, `shieldedBalanceRaw`, `timestamp` |
+| `Types.BalanceUpdate` | `account`, `shieldedBalanceRaw`, `timestamp` |
 | `Types.MarginAlert` | `owner`, `symbolId`, `tier`, `marginRatioBps`, `markPrice`, `liquidationPrice`, `stateVersion`, `recovered`, `ts` |
 | `Types.FundingRateUpdate` | `symbolId`, `fundingRate`, `lastFundingRate`, `timestamp` |
 | `Types.SettlementUpdate` | `batchId`, `status` (`SettlementBatchStatus`), `txSignature`, `timestamp`, `affectedUserUuids` |

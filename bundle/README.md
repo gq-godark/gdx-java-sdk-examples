@@ -53,7 +53,7 @@ cp .env.example .env
 # optional override when running from examples/: cp ../.env examples/.env
 ```
 
-Also optional for local edges: `GODARK_USER_UUID`, `GODARK_TLS_SKIP_VERIFY`.
+Also optional for custom edges: `GODARK_ACCOUNT` (base58 fallback), `GODARK_TLS_SKIP_VERIFY`.
 
 ## 4) Run quickstart
 

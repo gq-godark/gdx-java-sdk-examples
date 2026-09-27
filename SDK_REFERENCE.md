@@ -11,12 +11,13 @@ version intentionally omits sections that recipients don't need (the
 standalone-bot walkthrough, JAR layout / internals, refresh discipline, and
 sourcing-from-git instructions).
 
-> Scope: the MM examples use **WebSocket encrypted trading** via
-> `godark.GodarkClient`. Encrypted REST trading is not supported — all
-> order flow (place / modify / cancel / mass-quote) runs over the HPKE
-> WebSocket client. The bundle includes `RestClientExample` for REST auth,
-> account reads, and public market-data GETs; it does not include or claim a
-> full REST trader. A standalone WebSocket market-data client also ships in
+> Scope: the MM examples use persistent **WebSocket encrypted trading** via
+> `godark.GodarkClient`. The SDK also provides `GodarkRestClient` for bearer
+> authentication, one-shot HPKE account snapshots, and encrypted
+> place / modify / cancel operations. The bundle includes
+> `RestClientExample` for REST auth, account reads, and public market-data
+> GETs; it does not include or claim a full REST trader or REST mass-quote /
+> batch wrappers. A standalone WebSocket market-data client also ships in
 > the JAR but is outside the bundled examples in this distribution.
 > Order placement support is limited to `MARKET` and `LIMIT`.
 

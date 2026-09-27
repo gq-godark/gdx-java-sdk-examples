@@ -14,8 +14,10 @@ sourcing-from-git instructions).
 > Scope: the MM examples use **WebSocket encrypted trading** via
 > `godark.GodarkClient`. Encrypted REST trading is not supported — all
 > order flow (place / modify / cancel / mass-quote) runs over the HPKE
-> WebSocket client. A standalone market-data client also ships in the JAR
-> but is outside the bundled examples in this distribution.
+> WebSocket client. The bundle includes `RestClientExample` for REST auth,
+> account reads, and public market-data GETs; it does not include or claim a
+> full REST trader. A standalone WebSocket market-data client also ships in
+> the JAR but is outside the bundled examples in this distribution.
 > Order placement support is limited to `MARKET` and `LIMIT`.
 
 ## Quick Start
@@ -366,6 +368,7 @@ end-to-end try/catch / `onError` pattern.
 |------|-------------|---------|
 | `examples/src/main/java/exchange/godark/examples/Quickstart.java` | `./gradlew runQuickstart` | Minimal connect, place, cancel |
 | `examples/src/main/java/exchange/godark/examples/FullTraderExample.java` | `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel |
+| `examples/src/main/java/exchange/godark/examples/RestClientExample.java` | `./gradlew runRestClientExample` | REST auth, account reads, and public market-data GETs (not a REST trader) |
 | `examples/src/main/java/exchange/godark/examples/support/Dotenv.java` | (helper) | Multi-path `.env` loader used by both example mains |
 
 ## Gradle integration (your own bot)
@@ -492,8 +495,9 @@ the same content as the freshly-built one. Layer 2 automation
 (`auto-bump-sdk-pin.yml`) wraps this loop into a rolling auto-PR triggered by
 SDK pushes.
 
-## RestClient example
+## REST client example
 
-`GodarkRestClient` is exercised by `runRestClientExample`: REST auth, `/auth/me`,
-account snapshots, leverage reads, and public funding/OI/volume GETs. Encrypted
-place/cancel/modify/update-leverage remain WebSocket-only via `GodarkClient`.
+Only `RestClientExample` is claimed here: it demonstrates REST auth, account
+snapshots, leverage reads, and public funding/OI/volume GETs. It is not a full
+REST trader. Encrypted place/cancel/modify/update-leverage remain WebSocket-only
+via `GodarkClient`.

@@ -42,6 +42,10 @@ public final class RestClientExample {
             .apiKeyId(apiKeyId)
             .apiSecret(apiSecret)
             .passphrase(passphrase);
+    String configuredAccount = ExamplesEnv.first("GODARK_ACCOUNT", "GDX_ACCOUNT");
+    if (configuredAccount != null && !configuredAccount.isBlank()) {
+      builder.account(configuredAccount);
+    }
     String restBase = ExamplesEnv.first("GODARK_REST_URL", "GDX_REST_URL");
     if (restBase != null && !restBase.isBlank()) {
       builder.restBaseUrl(restBase);
@@ -61,8 +65,8 @@ public final class RestClientExample {
       System.out.println("connecting (REST auth/token)...");
       client.connect();
       System.out.printf(
-          "identity user_uuid=%s scope=%s%n",
-          client.userUuid().orElse("?"), client.tokenScope().orElse(""));
+          "identity account=%s scope=%s%n",
+          client.account().orElse("?"), client.tokenScope().orElse(""));
 
       try {
         Types.OpenOrdersSnapshot open = client.getOpenOrders();

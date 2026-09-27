@@ -61,9 +61,9 @@ public final class Quickstart {
     if (baseOverride != null && !baseOverride.isBlank()) {
       b.baseUrl(baseOverride);
     }
-    String uid = ExamplesEnv.first("GODARK_USER_UUID", "GDX_USER_UUID");
-    if (uid != null && !uid.isBlank()) {
-      b.userUuid(uid);
+    String account = ExamplesEnv.first("GODARK_ACCOUNT", "GDX_ACCOUNT");
+    if (account != null && !account.isBlank()) {
+      b.account(account);
     }
     if (GodarkClient.wsUrl(base).startsWith("wss://")
         && ExamplesEnv.truthy("GODARK_TLS_SKIP_VERIFY", "GDX_TLS_SKIP_VERIFY")) {
@@ -73,8 +73,8 @@ public final class Quickstart {
     GodarkClient client = b.build();
     try {
       client.connect();
-      String user = client.userUuid().orElse("");
-      System.out.println("Connected as user_uuid=" + user);
+      String connectedAccount = client.account().orElse("");
+      System.out.println("Connected as account=" + connectedAccount);
       try {
         // Book confirmation waits on private order updates; subscribe first.
         client.subscribe("orders", "positions");

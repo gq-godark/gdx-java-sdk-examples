@@ -1,11 +1,13 @@
 # GoDark Java SDK Reference
 
 This reference describes the API surface used by the bundled examples
-shipped in this distribution. The examples use WebSocket encrypted trading
-via `godark.GodarkClient`. Encrypted REST trading is not supported — all
-order flow (place / modify / cancel / mass-quote) runs over the HPKE
-WebSocket client. A standalone market-data client also ships in the JAR but
-is outside the bundled examples in this distribution.
+shipped in this distribution. The trading examples use WebSocket encrypted
+trading via `godark.GodarkClient`. Encrypted REST trading is not supported —
+all order flow (place / modify / cancel / mass-quote) runs over the HPKE
+WebSocket client. The bundle includes `RestClientExample` for REST auth,
+account reads, and public market-data GETs; it does not include or claim a
+full REST trader. A standalone WebSocket market-data client also ships in the
+JAR but is outside the bundled examples in this distribution.
 
 Order placement support in this MM distribution is limited to `MARKET` and
 `LIMIT`.
@@ -252,6 +254,7 @@ patterns.
 |-------------|---------|
 | `./gradlew runQuickstart` | Minimal connect, place, cancel |
 | `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel |
+| `./gradlew runRestClientExample` | REST auth, account reads, and public market-data GETs (not a REST trader) |
 
 ## Gradle integration (your own bot)
 

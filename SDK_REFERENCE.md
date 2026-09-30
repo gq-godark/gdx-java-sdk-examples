@@ -239,8 +239,13 @@ independent threads — that's the intended pattern in `FullTraderExample`.
 **Package:** `godark` — value records in `godark.Types`.
 
 Wire decimals are often exposed as **strings** on push types to preserve
-sequencer precision. Command APIs use `double` / `Double` where noted on
-`placeOrder`.
+sequencer precision. **Command APIs accept decimal strings only** for prices
+and sizes (`placeOrder`, `modifyOrder`, mass-quote / batch-modify legs,
+`PlaceOrderOptions` trigger/TP/SL/`quoteNotional`, min-fill). Numbers
+(`double` / `Double`) are not accepted on the public path — format locally
+(for example with `Decimals.fromDouble`) before calling the API. The SDK
+normalizes strings with `Decimals.normalizeDecimal` against each instrument's
+`price_decimals` / `quantity_decimals`.
 
 ### OrderAck
 
@@ -310,9 +315,12 @@ orders.
 
 `Types.PlaceOrderOptions` (optional last argument on `placeOrder`) includes
 `reduceOnly`, `postOnly`, `stpMode`, `pegOffsetBps`, `triggerPrice`,
-`takeProfitPrice`, `stopLossPrice`, and `slippageBps`. Omit `slippageBps` (null)
-to use the venue max walk cap (localnet 5%); typical explicit values are 50–500
-bps (0.5%–5%).
+`takeProfitPrice`, `stopLossPrice`, `slippageBps`, and `quoteNotional`.
+`triggerPrice` / `takeProfitPrice` / `stopLossPrice` / `quoteNotional` are
+**decimal strings** (not numbers). Omit `slippageBps` (null) to use the venue
+max walk cap (localnet 5%); typical explicit values are 50–500 bps (0.5%–5%).
+`MassQuoteLegInput` and `BatchModifyLegInput` likewise take string prices/sizes
+only.
 
 ## Errors
 

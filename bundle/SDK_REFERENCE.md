@@ -115,9 +115,9 @@ TransportConfig transport =
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `placeOrder` | `OrderAck placeOrder(String symbol, String side, String orderType, double quantity, Double price, String timeInForce, boolean aon, Double minFillSize, Long expiryTime) throws GodarkException` | Place encrypted order |
+| `placeOrder` | `OrderAck placeOrder(String symbol, String side, String orderType, String quantity, String price, String timeInForce, boolean aon, String minFillSize, Long expiryTime) throws GodarkException` | Place encrypted order (decimal strings) |
 | `cancelOrder` | `OrderAck cancelOrder(String orderId, String symbol) throws GodarkException` | Cancel by id (overload defaults symbol to `BTC-USDC-PERP`) |
-| `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, Double newPrice, Double newQuantity, Double newTriggerPrice) throws GodarkException` | Modify price, quantity, and/or stop trigger |
+| `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, String newPrice, String newQuantity, String newTriggerPrice) throws GodarkException` | Modify price, quantity, and/or stop trigger (decimal strings) |
 
 `side`, `orderType`, and `timeInForce` are **strings** at the command boundary
 (for example `"SELL"`, `"LIMIT"`, `"GTC"`). Stream updates use protobuf enums on
@@ -190,8 +190,9 @@ bps (0.5%–5%).
 **Package:** `godark` — value records in `godark.Types`.
 
 Wire decimals are often exposed as **strings** on push types to preserve
-sequencer precision. Command APIs use `double` / `Double` where noted on
-`placeOrder`.
+sequencer precision. **Command APIs accept decimal strings only** for prices
+and sizes — numbers (`double` / `Double`) are not accepted. Format locally
+(for example with `Decimals.fromDouble`) before calling the API.
 
 ### OrderAck
 

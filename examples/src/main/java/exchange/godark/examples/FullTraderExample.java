@@ -427,9 +427,12 @@ public final class FullTraderExample {
     System.out.printf("Mass-quoting a 3-level BUY ladder (post-only), base=%.2f...%n", base);
     List<Types.MassQuoteLegInput> ladder =
         List.of(
-            new Types.MassQuoteLegInput("BUY", base * (1 - 0.003), 0.02),
-            new Types.MassQuoteLegInput("BUY", base * (1 - 0.006), 0.02),
-            new Types.MassQuoteLegInput("BUY", base * (1 - 0.009), 0.02));
+            new Types.MassQuoteLegInput(
+                "BUY", Decimals.fromDouble(base * (1 - 0.003)), "0.02"),
+            new Types.MassQuoteLegInput(
+                "BUY", Decimals.fromDouble(base * (1 - 0.006)), "0.02"),
+            new Types.MassQuoteLegInput(
+                "BUY", Decimals.fromDouble(base * (1 - 0.009)), "0.02"));
     List<Long> restingIds = new ArrayList<>();
     try {
       Types.MassQuoteAck mq = client.massQuote(SYMBOL, ladder, null);
@@ -477,7 +480,9 @@ public final class FullTraderExample {
     try {
       Types.MassQuoteAck mq =
           client.massQuote(
-              SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.001)), Boolean.TRUE);
+              SYMBOL,
+              List.of(new Types.MassQuoteLegInput("BUY", Decimals.fromDouble(crossPx), "0.001")),
+              Boolean.TRUE);
       for (Types.MassQuoteLegResult r : mq.results()) {
         System.out.printf(
             "  leg %d: status=%s err=%s fills=%d%n",
@@ -495,7 +500,9 @@ public final class FullTraderExample {
     try {
       Types.MassQuoteAck mq =
           client.massQuote(
-              SYMBOL, List.of(new Types.MassQuoteLegInput("BUY", crossPx, 0.003)), Boolean.FALSE);
+              SYMBOL,
+              List.of(new Types.MassQuoteLegInput("BUY", Decimals.fromDouble(crossPx), "0.003")),
+              Boolean.FALSE);
       java.util.ArrayList<Long> strayIds = new java.util.ArrayList<>();
       for (Types.MassQuoteLegResult r : mq.results()) {
         System.out.printf(

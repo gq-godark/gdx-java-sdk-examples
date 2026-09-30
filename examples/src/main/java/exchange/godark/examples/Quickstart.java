@@ -2,6 +2,7 @@ package exchange.godark.examples;
 
 import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
+import godark.Decimals;
 import godark.Environment;
 import godark.GodarkClient;
 import godark.GodarkException;
@@ -83,7 +84,15 @@ public final class Quickstart {
         double sellPx = Math.round(mark * 1.03 * 10.0) / 10.0;
         Types.OrderAck ack =
             client.placeOrder(
-                SYMBOL, "SELL", "LIMIT", 0.01, sellPx, "GTC", false, null, null);
+                SYMBOL,
+                "SELL",
+                "LIMIT",
+                "0.01",
+                Decimals.fromDouble(sellPx),
+                "GTC",
+                false,
+                null,
+                null);
         System.out.printf(
             "Place OK — order_id=%s (limit SELL @ %.1f, mark=%.1f)%n",
             ack.orderId(), sellPx, mark);

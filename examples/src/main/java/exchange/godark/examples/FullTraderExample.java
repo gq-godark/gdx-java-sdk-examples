@@ -2,6 +2,7 @@ package exchange.godark.examples;
 
 import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
+import godark.Decimals;
 import godark.ConnectionException;
 import godark.Enums;
 import godark.Environment;
@@ -312,7 +313,15 @@ public final class FullTraderExample {
     try {
       buyAck =
           client.placeOrder(
-              SYMBOL, "BUY", "LIMIT", 0.1, buyPx, "GTC", false, null, null);
+              SYMBOL,
+              "BUY",
+              "LIMIT",
+              "0.1",
+              Decimals.fromDouble(buyPx),
+              "GTC",
+              false,
+              null,
+              null);
       System.out.printf(
           "BUY placed: order_id=%s  sequence=%s%n", buyAck.orderId(), buyAck.sequence());
     } catch (GodarkException e) {
@@ -326,7 +335,7 @@ public final class FullTraderExample {
       double modifyPx = Math.round(mark * 0.996 * 10.0) / 10.0;
       System.out.printf("Modifying order price to %.1f...%n", modifyPx);
       try {
-        Types.OrderAck modAck = client.modifyOrder(buyAck.orderId(), SYMBOL, modifyPx, null);
+        Types.OrderAck modAck = client.modifyOrder(buyAck.orderId(), SYMBOL, Decimals.fromDouble(modifyPx), null);
         System.out.println("Modified: order_id=" + modAck.orderId());
       } catch (GodarkException e) {
         System.err.println("Modify rejected: " + e.getMessage());
@@ -344,7 +353,7 @@ public final class FullTraderExample {
               SYMBOL,
               "BUY",
               "MARKET",
-              0.01,
+              "0.01",
               null,
               "IOC",
               false,
@@ -368,8 +377,8 @@ public final class FullTraderExample {
               SYMBOL,
               "SELL",
               "LIMIT",
-              0.05,
-              sellPx,
+              "0.05",
+              Decimals.fromDouble(sellPx),
               "GTC",
               false,
               null,

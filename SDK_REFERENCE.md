@@ -43,8 +43,8 @@ public class Bot {
               "BTC-USDC-PERP",
               "SELL",
               "LIMIT",
-              0.01,
-              999_999.0,
+              "0.01",
+              "999999",
               "GTC",
               false,
               null,
@@ -167,10 +167,10 @@ consumer site.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `placeOrder` | `OrderAck placeOrder(String symbol, String side, String orderType, double quantity, Double price, String timeInForce, boolean aon, Double minFillSize, Long expiryTime) throws GodarkException` | Place encrypted order |
+| `placeOrder` | `OrderAck placeOrder(String symbol, String side, String orderType, String quantity, String price, String timeInForce, boolean aon, String minFillSize, Long expiryTime) throws GodarkException` | Place encrypted order (decimal strings) |
 | `updateLeverage` | `OrderAck updateLeverage(String symbol, int leverage) throws GodarkException` | Set per-symbol account leverage (place/massQuote inherit this) |
 | `cancelOrder` | `OrderAck cancelOrder(String orderId, String symbol) throws GodarkException` | Cancel by id (overload defaults symbol to `BTC-USDC-PERP`) |
-| `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, Double newPrice, Double newQuantity, Double newTriggerPrice) throws GodarkException` | Modify price, quantity, and/or stop trigger |
+| `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, String newPrice, String newQuantity, String newTriggerPrice) throws GodarkException` | Modify price, quantity, and/or stop trigger (decimal strings) |
 | `massQuote` | `MassQuoteAck massQuote(String symbol, List<MassQuoteLegInput> legs, Boolean postOnly) throws GodarkException` | Bulk cancel-replace ladder |
 
 `side`, `orderType`, and `timeInForce` are **strings** at the command boundary
@@ -435,8 +435,8 @@ public class MyBot {
               "BTC-USDC-PERP",
               "SELL",
               "LIMIT",
-              0.01,
-              999_999.0,
+              "0.01",
+              "999999",
               "GTC",
               false,
               null,

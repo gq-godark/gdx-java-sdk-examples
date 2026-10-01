@@ -1,11 +1,14 @@
 # GoDark Java SDK Reference
 
 This reference describes the API surface used by the bundled examples
-shipped in this distribution. The examples use WebSocket encrypted trading
-via `godark.GodarkClient`. Encrypted REST trading is not supported — all
-order flow (place / modify / cancel / mass-quote) runs over the Noise XK
-WebSocket client. A standalone market-data client also ships in the JAR but
-is outside the bundled examples in this distribution.
+shipped in this distribution. The trading examples use persistent WebSocket
+encrypted trading via `godark.GodarkClient`. The SDK also provides
+`GodarkRestClient` for bearer authentication, one-shot HPKE account snapshots,
+and encrypted place / modify / cancel operations. The bundle includes
+`RestClientExample` for REST auth, account reads, and public market-data GETs;
+it does not include a full REST trader or REST mass-quote / batch wrappers.
+A standalone WebSocket market-data client also ships in the JAR but is outside
+the bundled examples in this distribution.
 
 Order placement support in this MM distribution is limited to `MARKET` and
 `LIMIT`.
@@ -24,15 +27,17 @@ public class Bot {
             .baseUrl("wss://api.godark-dex.com")
             .apiKeyId("gdk_...")
             .apiSecret("...")
+            .passphrase("...")
             .build()) {
       client.connect();
+      client.subscribe("orders", "positions");
       Types.OrderAck ack =
           client.placeOrder(
               "BTC-USDC-PERP",
               "SELL",
               "LIMIT",
-              0.01,
-              999_999.0,
+              "0.01",
+              "999999",
               "GTC",
               false,
               null,
@@ -62,7 +67,8 @@ Typical variables:
 - `GODARK_API_KEY_ID` (required for id/secret auth)
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
-- `GDX_NOISE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`
+- `GDX_HPKE_STATIC_PUBLIC_KEY` (required for localnet/custom encrypted WebSocket trading) — 64 hex chars; aliases `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`
+- `GODARK_ACCOUNT` (optional) — base58 fallback for custom edges that omit `account` from auth
 - `GODARK_EDGE_URL` (optional host origin; client appends `/ws/v1`)
 
 Use the bundle-root `.env.example` as the template (copy to `.env`, or to
@@ -100,19 +106,19 @@ TransportConfig transport =
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `connect` | `void connect() throws GodarkException` | Authenticate and establish encrypted session |
+| `connect` | `void connect() throws GodarkException` | Mint a REST access token, then WebSocket-authenticate with that token |
 | `disconnect` | `void disconnect()` | Close socket and reset session |
 | `logout` | `void logout() throws GodarkException` | Logout then disconnect |
 | `close` | `void close()` | `AutoCloseable` — delegates to `disconnect()` |
-| `userUuid` | `Optional<String> userUuid()` | Authenticated user id after connect |
+| `account` | `Optional<String> account()` | Authenticated base58 account after connect |
 
 ### Trading commands
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `placeOrder` | `OrderAck placeOrder(String symbol, String side, String orderType, double quantity, Double price, String timeInForce, boolean aon, Double minFillSize, Long expiryTime) throws GodarkException` | Place encrypted order |
+| `placeOrder` | `OrderAck placeOrder(String symbol, String side, String orderType, String quantity, String price, String timeInForce, boolean aon, String minFillSize, Long expiryTime) throws GodarkException` | Place encrypted order (decimal strings) |
 | `cancelOrder` | `OrderAck cancelOrder(String orderId, String symbol) throws GodarkException` | Cancel by id (overload defaults symbol to `BTC-USDC-PERP`) |
-| `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, Double newPrice, Double newQuantity, Double newTriggerPrice) throws GodarkException` | Modify price, quantity, and/or stop trigger |
+| `modifyOrder` | `OrderAck modifyOrder(String orderId, String symbol, String newPrice, String newQuantity, String newTriggerPrice) throws GodarkException` | Modify price, quantity, and/or stop trigger (decimal strings) |
 
 `side`, `orderType`, and `timeInForce` are **strings** at the command boundary
 (for example `"SELL"`, `"LIMIT"`, `"GTC"`). Stream updates use protobuf enums on
@@ -122,7 +128,7 @@ the wire (see **Enums**).
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `subscribe` | `void subscribe(String... channels) throws GodarkException` | Subscribe to private channels (`orders`, `positions`) |
+| `subscribe` | `void subscribe(String... channels) throws GodarkException` | `/ws/v1` channels: `orders`, `positions`, `volume`, `open_interest`, `funding_rate`. Unknown channel fails fast. No trades or L2 book. |
 | `subscribe` | `void subscribe() throws GodarkException` | Subscribe to `orders` and `positions` |
 | `unsubscribe` | `void unsubscribe(String... channels) throws GodarkException` | Unsubscribe |
 | `pollOrderUpdate` | `Optional<OrderUpdate> pollOrderUpdate(long millis) throws InterruptedException` | Blocking poll from order queue |
@@ -157,10 +163,10 @@ client.onSettlementUpdate(s -> { });
 | Push | Field highlights | Typical use |
 |------|------------------|-------------|
 | `PositionsSnapshot` | `rows()` (`PositionRow` with `symbolId`, `side`, `size`, `entryPrice`, `markPrice`, …), `source`, `serverTimestamp` | Hydrate open positions on connect; periodic refresh |
-| `SystemHealthUpdate` | `totalNodes`, `ready`, `degraded`, `acceptingOrders` | Cluster status; pause submissions if not accepting |
+| `SystemHealthUpdate` | `componentId`, `state`, `serving`, `cause`, `updatedAtNanos`, `sequence`, `schemaVersion` | Component health |
 | `BalanceUpdate` | `shieldedBalanceRaw` | Wallet / equity after fills or settlement |
-| `MarginAlert` | `symbolId`, `tier`, `marginRatioBps`, `liquidationPriceBps`, `recovered` | Margin banner per owner and symbol |
-| `FundingRateUpdate` | `symbolId`, `currentRate`, `predictedRate`, `nextFundingTime` | Funding ticker / metadata |
+| `MarginAlert` | `owner`, `symbolId`, `tier`, `marginRatioBps`, `markPrice`, `liquidationPrice`, `recovered` | Margin banner per owner and symbol |
+| `FundingRateUpdate` | `symbolId`, `fundingRate`, `lastFundingRate`, `timestamp` | Funding ticker / metadata |
 | `SettlementUpdate` | `batchId`, `status`, `txSignature`, `affectedUserUuids` | Batch reconciliation |
 
 Each stream uses a single bounded queue per type (default capacity from
@@ -174,13 +180,25 @@ Only one encrypted command (`placeOrder`, `cancelOrder`, `modifyOrder`) should
 be in flight at a time. Complete each call (or handle its exception) before
 issuing the next.
 
+`Types.PlaceOrderOptions` (optional last argument on `placeOrder`) includes
+`reduceOnly`, `postOnly`, `stpMode`, `pegOffsetBps`, `triggerPrice`,
+`takeProfitPrice`, `stopLossPrice`, and `slippageBps`. `slippageBps` applies
+only to `MARKET` and `STOP_MARKET`. Omit it (null) to use the venue max walk
+cap (localnet 5%); typical explicit values are 50–500 bps (0.5%–5%). `PEG` is
+not post-only.
+
+WebSocket login uses the REST access token, not `id:secret:passphrase`. A
+client-order id is registered only after a successful WebSocket place and is
+cached only after `POST /orders/_register_coid` returns HTTP 200. REST place
+does not register a client-order id.
+
 ## Core Types
 
 **Package:** `godark` — value records in `godark.Types`.
 
 Wire decimals are often exposed as **strings** on push types to preserve
-sequencer precision. Command APIs use `double` / `Double` where noted on
-`placeOrder`.
+sequencer precision. **Command APIs accept decimal strings only** for prices
+and sizes. Pass literals such as quantity `"0.001"` and price `"67500.5"`.
 
 ### OrderAck
 
@@ -198,7 +216,7 @@ lifecycle fields.
 
 ### PositionUpdate
 
-Record fields include `userUuid`, `symbolId`, `side`, `updateType`, `size`,
+Record fields include `account`, `symbolId`, `side`, `updateType`, `size`,
 `entryPrice`, `fillPrice`, `fillQty`, `timestamp`, and related lifecycle
 fields.
 
@@ -244,6 +262,7 @@ patterns.
 |-------------|---------|
 | `./gradlew runQuickstart` | Minimal connect, place, cancel |
 | `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel |
+| `./gradlew runRestClientExample` | REST auth, account reads, and public market-data GETs (not a REST trader) |
 
 ## Gradle integration (your own bot)
 
@@ -252,7 +271,7 @@ module's `build.gradle.kts`; adjust if the JAR lives elsewhere):
 
 ```kotlin
 dependencies {
-  implementation(files("sdk/lib/godark-0.1.0-all.jar"))
+  implementation(files("sdk/lib/godark-0.2.0-all.jar"))
 }
 ```
 

@@ -13,17 +13,13 @@ public final class Quickstart {
 
   private static final String SYMBOL = "BTC-USDC-PERP";
 
-  private static double liveMarkPrice() {
-    String raw =
-        ExamplesEnv.first("GODARK_E2E_PRICE", "GDX_E2E_PRICE", "GDX_LIVE_PRICE");
+  /** Price override is a decimal string. It is not parsed through {@code double}. */
+  private static String priceOr(String literal) {
+    String raw = ExamplesEnv.first("GODARK_E2E_PRICE", "GDX_E2E_PRICE", "GDX_LIVE_PRICE");
     if (raw != null && !raw.isBlank()) {
-      try {
-        return Double.parseDouble(raw);
-      } catch (NumberFormatException ignored) {
-        // fall through
-      }
+      return raw.strip();
     }
-    return 79_000.0;
+    return literal;
   }
 
   private Quickstart() {}
@@ -61,9 +57,9 @@ public final class Quickstart {
     if (baseOverride != null && !baseOverride.isBlank()) {
       b.baseUrl(baseOverride);
     }
-    String uid = ExamplesEnv.first("GODARK_USER_UUID", "GDX_USER_UUID");
-    if (uid != null && !uid.isBlank()) {
-      b.userUuid(uid);
+    String account = ExamplesEnv.first("GODARK_ACCOUNT", "GDX_ACCOUNT");
+    if (account != null && !account.isBlank()) {
+      b.account(account);
     }
     if (GodarkClient.wsUrl(base).startsWith("wss://")
         && ExamplesEnv.truthy("GODARK_TLS_SKIP_VERIFY", "GDX_TLS_SKIP_VERIFY")) {
@@ -73,20 +69,17 @@ public final class Quickstart {
     GodarkClient client = b.build();
     try {
       client.connect();
-      String user = client.userUuid().orElse("");
-      System.out.println("Connected as user_uuid=" + user);
+      String connectedAccount = client.account().orElse("");
+      System.out.println("Connected as account=" + connectedAccount);
       try {
         // Book confirmation waits on private order updates; subscribe first.
         client.subscribe("orders", "positions");
         Thread.sleep(350);
-        double mark = liveMarkPrice();
-        double sellPx = Math.round(mark * 1.03 * 10.0) / 10.0;
         Types.OrderAck ack =
             client.placeOrder(
-                SYMBOL, "SELL", "LIMIT", 0.01, sellPx, "GTC", false, null, null);
+                SYMBOL, "SELL", "LIMIT", "0.01", priceOr("999999"), "GTC", false, null, null);
         System.out.printf(
-            "Place OK — order_id=%s (limit SELL @ %.1f, mark=%.1f)%n",
-            ack.orderId(), sellPx, mark);
+            "Place OK — order_id=%s (limit SELL @ %s)%n", ack.orderId(), priceOr("999999"));
         // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).
         Thread.sleep(500);
         Types.CountAck cancelAck = client.cancelAllOrders(SYMBOL);

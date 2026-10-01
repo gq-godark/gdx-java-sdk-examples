@@ -62,8 +62,8 @@ Required:
 Optional:
 
 - `GODARK_EDGE_URL` — override the edge URL (default: public testnet `wss://api.godark-dex.com` via the SDK Testnet environment preset).
-- `GDX_HPKE_STATIC_PUBLIC_KEY` — sequencer HPKE static public key (64 hex). Required for **localnet/devnet** encrypted trading; legacy `GDX_NOISE_*` env names are still accepted. Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`.
-- `GODARK_USER_UUID` — some local edges need an explicit UUID from auth.
+- `GDX_HPKE_STATIC_PUBLIC_KEY` — sequencer HPKE static public key (64 hex). Required for **localnet/custom** encrypted trading; hosted testnet/devnet pins are baked in. Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`.
+- `GODARK_ACCOUNT` — optional base58 fallback for custom edges that omit `account` from auth.
 - `GODARK_TLS_SKIP_VERIFY` — set to `1` / `true` for dev TLS on `wss://`.
 
 Legacy `GDX_*` names are accepted when the matching `GODARK_*` key is unset.
@@ -128,13 +128,71 @@ List available tasks:
 ./gradlew tasks --group=examples
 ```
 
+## Follow the current SDK
+
+Pin: `sdk/UPSTREAM_REF`. Prices and sizes are **decimal strings**. Pass
+literals at the call, for example quantity `"0.001"` and price `"67500.5"`.
+Numeric constructors are gone. Do not convert a `double` before the call.
+
+Environment **names** only (values stay in `.env`, never in this README):
+
+| Name | Role |
+|------|------|
+| `GODARK_API_KEY_ID` | REST and WebSocket key-pair id |
+| `GODARK_API_SECRET` | Key-pair secret |
+| `GODARK_PASSPHRASE` | Key-pair passphrase |
+| `GODARK_EDGE_URL` | Optional edge origin (`GodarkClient` appends `/ws/v1`) |
+| `GODARK_REST_URL` | Optional REST origin for `GodarkRestClient` |
+| `GODARK_ACCOUNT` | Optional base58 fallback when auth omits `account` |
+| `GDX_HPKE_STATIC_PUBLIC_KEY` | Required for localnet/custom HPKE |
+
+**REST auth.** `GodarkRestClient.connect()` posts `client_credentials` to
+`POST /api/v1/auth/token` and keeps the returned `access_token`. See
+`./gradlew runRestClientExample`.
+
+**WebSocket login.** `GodarkClient.connect()` does not send
+`id:secret:passphrase` on the socket. For a key pair it mints that same REST
+access token (`AccessToken.mintAccessToken`) and passes the token to the
+WebSocket `authenticate` frame. A legacy opaque `GODARK_API_KEY` is sent as
+the token itself.
+
+**Subscribe.** On `/ws/v1` the channels are `orders`, `positions`, `volume`,
+`open_interest`, and `funding_rate`. An unknown name fails the subscribe
+immediately. There is no trades feed and no L2 book on `/ws/v1`.
+
+```java
+client.subscribe("orders", "positions");
+```
+
+**String place.** Quantity and price are strings. `slippageBps` applies only
+to `MARKET` and `STOP_MARKET` (null omits the field; the venue uses its max
+walk). A `PEG` order is not post-only.
+
+```java
+Types.OrderAck ack =
+    client.placeOrder(
+        "BTC-USDC-PERP", "SELL", "LIMIT", "0.01", "999999", "GTC", false, null, null);
+```
+
+A non-blank client-order id is registered only after a **successful WebSocket**
+place: `POST /orders/_register_coid` runs with the place correlation, and the
+local map is written only after HTTP 200. REST `placeOrder` refuses a
+client-order id; it does not register one.
+
+**Read a position.** After `subscribe("positions")`, use
+`onPositionsSnapshot` / `pollPositionsSnapshot` (`PositionRow.size` and
+`entryPrice` are strings). `RestClientExample` reads account, open orders,
+and leverage over HTTP.
+
+**Cancel.** `cancelOrder(orderId, symbol)` or `cancelAllOrders(symbol)`.
+
 ## Examples
 
 | Sample | Gradle task | Purpose |
 |--------|-------------|---------|
-| `Quickstart.java` | `./gradlew runQuickstart` | Minimal connect → `subscribe("orders")` → LIMIT sell far from touch → cancel (book confirmation needs the private orders channel) |
-| `FullTraderExample.java` | `./gradlew runFullTraderExample` | Reference flow: callbacks, place / modify / cancel, mass-quote / batch-cancel, session summary |
-| `RestClientExample.java` | `./gradlew runRestClientExample` | Residual HTTP: public GETs, auth, me / leverage / balance, HPKE WebSocket note |
+| `Quickstart.java` | `./gradlew runQuickstart` | Connect → subscribe `orders` + `positions` → string LIMIT sell → cancel-all |
+| `FullTraderExample.java` | `./gradlew runFullTraderExample` | Callbacks, string place / modify / cancel, market slippage, mass-quote |
+| `RestClientExample.java` | `./gradlew runRestClientExample` | REST token auth, account / leverage reads, public funding / OI / volume |
 
 Order-type support in this MM distribution is limited to **`MARKET`** and
 **`LIMIT`**.

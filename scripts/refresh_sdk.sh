@@ -21,7 +21,7 @@ if [[ ! -d "$SRC" ]]; then
   exit 1
 fi
 
-if [[ ! -d "$SRC/.git" ]]; then
+if ! git -C "$SRC" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "error: '$SRC' is not a git checkout — pin cannot be recorded" >&2
   exit 1
 fi

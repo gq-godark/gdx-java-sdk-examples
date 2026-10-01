@@ -253,10 +253,9 @@ independent threads — that's the intended pattern in `FullTraderExample`.
 Wire decimals are often exposed as **strings** on push types to preserve
 sequencer precision. **Command APIs accept decimal strings only** for prices
 and sizes (`placeOrder`, `modifyOrder`, mass-quote / batch-modify legs,
-`PlaceOrderOptions` trigger/TP/SL/`quoteNotional`, min-fill). Numbers
-(`double` / `Double`) are not accepted on the public path — format locally
-(for example with `Decimals.fromDouble`) before calling the API. The SDK
-normalizes strings with `Decimals.normalizeDecimal` against each instrument's
+`PlaceOrderOptions` trigger/TP/SL/`quoteNotional`, min-fill). Pass literals
+such as quantity `"0.001"` and price `"67500.5"`. The SDK normalizes those
+strings with `Decimals.normalizeDecimal` against each instrument's
 `price_decimals` / `quantity_decimals`.
 
 ### OrderAck

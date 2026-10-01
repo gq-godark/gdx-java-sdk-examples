@@ -198,8 +198,7 @@ does not register a client-order id.
 
 Wire decimals are often exposed as **strings** on push types to preserve
 sequencer precision. **Command APIs accept decimal strings only** for prices
-and sizes — numbers (`double` / `Double`) are not accepted. Format locally
-(for example with `Decimals.fromDouble`) before calling the API.
+and sizes. Pass literals such as quantity `"0.001"` and price `"67500.5"`.
 
 ### OrderAck
 

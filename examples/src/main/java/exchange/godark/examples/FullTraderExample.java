@@ -2,7 +2,6 @@ package exchange.godark.examples;
 
 import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
-import godark.Decimals;
 import godark.ConnectionException;
 import godark.Enums;
 import godark.Environment;
@@ -64,9 +63,6 @@ public final class FullTraderExample {
     Map<String, Integer> counts = new HashMap<>();
     ArrayDeque<Types.OrderUpdate> orderEvents = new ArrayDeque<>();
     ArrayDeque<String> nonFatal = new ArrayDeque<>(32);
-    // BTC-USDC-PERP is symbol id 1; capture its live mark from snapshots so the
-    // mass-quote ladder/cross prices can anchor to the real touch. 0 = unseen.
-    double[] lastBtcMark = {0.0};
 
     GodarkClient.Builder b =
         GodarkClient.builder()
@@ -124,16 +120,6 @@ public final class FullTraderExample {
               "SNAP   source=%s  rows=%d  ts=%d%n",
               s.source(), s.rows().size(), s.serverTimestamp());
           for (Types.PositionRow row : s.rows()) {
-            if (row.symbolId() == 1 && row.markPrice() != null && !row.markPrice().isBlank()) {
-              try {
-                double v = Double.parseDouble(row.markPrice());
-                if (v > 0) {
-                  lastBtcMark[0] = v;
-                }
-              } catch (NumberFormatException ignore) {
-                // keep previous
-              }
-            }
             String mark = row.markPrice() != null && !row.markPrice().isBlank() ? row.markPrice() : "—";
             System.out.printf(
                 "  ↳ symbol=%d  side=%s  size=%s  entry=%s  mark=%s%n",
@@ -230,7 +216,7 @@ public final class FullTraderExample {
     }
 
     try {
-      runSession(client, counts, orderEvents, nonFatal, sep, lastBtcMark);
+      runSession(client, counts, orderEvents, nonFatal, sep);
     } catch (GodarkException e) {
       System.err.println(e.getMessage());
       System.exit(1);
@@ -246,17 +232,13 @@ public final class FullTraderExample {
     System.out.println("Disconnected cleanly");
   }
 
-  private static double liveMarkPrice() {
-    String raw =
-        ExamplesEnv.first("GODARK_E2E_PRICE", "GDX_E2E_PRICE", "GDX_LIVE_PRICE");
+  /** Price override is a decimal string. It is not parsed through {@code double}. */
+  private static String priceOr(String literal) {
+    String raw = ExamplesEnv.first("GODARK_E2E_PRICE", "GDX_E2E_PRICE", "GDX_LIVE_PRICE");
     if (raw != null && !raw.isBlank()) {
-      try {
-        return Double.parseDouble(raw);
-      } catch (NumberFormatException ignored) {
-        // fall through
-      }
+      return raw.strip();
     }
-    return 79_000.0;
+    return literal;
   }
 
   private static void drainOrders(String label, ArrayDeque<Types.OrderUpdate> orderEvents) {
@@ -292,8 +274,7 @@ public final class FullTraderExample {
       Map<String, Integer> counts,
       ArrayDeque<Types.OrderUpdate> orderEvents,
       ArrayDeque<String> nonFatal,
-      String sep,
-      double[] lastBtcMark)
+      String sep)
       throws GodarkException, InterruptedException {
 
     System.out.println("Setting leverage to 1 via updateLeverage...");
@@ -306,22 +287,12 @@ public final class FullTraderExample {
       return;
     }
 
-    double mark = liveMarkPrice();
-    double buyPx = Math.round(mark * 0.997 * 10.0) / 10.0;
-    System.out.printf("Placing limit BUY @ %.1f (mark=%.1f)...%n", buyPx, mark);
+    System.out.printf("Placing limit BUY @ %s qty=0.001...%n", priceOr("67500.5"));
     Types.OrderAck buyAck = null;
     try {
       buyAck =
           client.placeOrder(
-              SYMBOL,
-              "BUY",
-              "LIMIT",
-              "0.1",
-              Decimals.fromDouble(buyPx),
-              "GTC",
-              false,
-              null,
-              null);
+              SYMBOL, "BUY", "LIMIT", "0.001", priceOr("67500.5"), "GTC", false, null, null);
       System.out.printf(
           "BUY placed: order_id=%s  sequence=%s%n", buyAck.orderId(), buyAck.sequence());
     } catch (GodarkException e) {
@@ -332,10 +303,10 @@ public final class FullTraderExample {
     drainOrders("after BUY", orderEvents);
 
     if (buyAck != null) {
-      double modifyPx = Math.round(mark * 0.996 * 10.0) / 10.0;
-      System.out.printf("Modifying order price to %.1f...%n", modifyPx);
+      System.out.println("Modifying order price to 67400.5...");
       try {
-        Types.OrderAck modAck = client.modifyOrder(buyAck.orderId(), SYMBOL, Decimals.fromDouble(modifyPx), null);
+        Types.OrderAck modAck =
+            client.modifyOrder(buyAck.orderId(), SYMBOL, "67400.5", null);
         System.out.println("Modified: order_id=" + modAck.orderId());
       } catch (GodarkException e) {
         System.err.println("Modify rejected: " + e.getMessage());
@@ -369,16 +340,15 @@ public final class FullTraderExample {
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after MARKET BUY", orderEvents);
 
-    double sellPx = Math.round(mark * 1.03 * 10.0) / 10.0;
-    System.out.printf("Placing limit SELL @ %.1f...%n", sellPx);
+    System.out.println("Placing limit SELL @ 999999 qty=0.001...");
     try {
       Types.OrderAck sellAck =
           client.placeOrder(
               SYMBOL,
               "SELL",
               "LIMIT",
-              "0.05",
-              Decimals.fromDouble(sellPx),
+              "0.001",
+              "999999",
               "GTC",
               false,
               null,
@@ -406,33 +376,13 @@ public final class FullTraderExample {
     // Pass Boolean.FALSE for the relaxed path, where a crossing leg takes
     // liquidity up to its limit and rests the remainder (the number of taker
     // fills is reported per leg as fillCount).
-    // Anchor the ladder/cross to the live BTC mark captured from the snapshot so
-    // the crossing demo below is deterministic regardless of current price. Fall
-    // back to GDX_BASE (default 64000) only if no mark was seen yet.
-    double base = lastBtcMark[0];
-    if (base <= 0) {
-      base = 64_000.0;
-      String baseEnv = ExamplesEnv.first("GDX_BASE");
-      if (baseEnv != null && !baseEnv.isBlank()) {
-        try {
-          double v = Double.parseDouble(baseEnv.strip());
-          if (v > 0) {
-            base = v;
-          }
-        } catch (NumberFormatException ignore) {
-          // keep default
-        }
-      }
-    }
-    System.out.printf("Mass-quoting a 3-level BUY ladder (post-only), base=%.2f...%n", base);
+    System.out.println(
+        "Mass-quoting a 3-level BUY ladder (post-only) @ 67300.5 / 67100.5 / 66900.5...");
     List<Types.MassQuoteLegInput> ladder =
         List.of(
-            new Types.MassQuoteLegInput(
-                "BUY", Decimals.fromDouble(base * (1 - 0.003)), "0.02"),
-            new Types.MassQuoteLegInput(
-                "BUY", Decimals.fromDouble(base * (1 - 0.006)), "0.02"),
-            new Types.MassQuoteLegInput(
-                "BUY", Decimals.fromDouble(base * (1 - 0.009)), "0.02"));
+            new Types.MassQuoteLegInput("BUY", "67300.5", "0.02"),
+            new Types.MassQuoteLegInput("BUY", "67100.5", "0.02"),
+            new Types.MassQuoteLegInput("BUY", "66900.5", "0.02"));
     List<Long> restingIds = new ArrayList<>();
     try {
       Types.MassQuoteAck mq = client.massQuote(SYMBOL, ladder, null);
@@ -470,18 +420,15 @@ public final class FullTraderExample {
       drainOrders("after CANCEL ALL", orderEvents);
     }
 
-    // Demonstrate the batch-level post_only flag on a crossing leg. Price a BUY
-    // ~5% above the live mark: aggressive enough to cross the resting ask, yet
-    // within the exchange's 10%-of-oracle limit. Anchored to the live mark, this
-    // makes the post_only=true (reject) vs false (fill) contrast deterministic.
-    double crossPx = base * 1.05;
+    // Crossing BUY is a decimal string above the ladder. post_only=true rejects
+    // a would-cross leg; post_only=false may take liquidity.
     // postOnly=true: a crossing leg is rejected (would-cross, error_code 2018).
     System.out.println("Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...");
     try {
       Types.MassQuoteAck mq =
           client.massQuote(
               SYMBOL,
-              List.of(new Types.MassQuoteLegInput("BUY", Decimals.fromDouble(crossPx), "0.001")),
+              List.of(new Types.MassQuoteLegInput("BUY", "70875.5", "0.001")),
               Boolean.TRUE);
       for (Types.MassQuoteLegResult r : mq.results()) {
         System.out.printf(
@@ -501,7 +448,7 @@ public final class FullTraderExample {
       Types.MassQuoteAck mq =
           client.massQuote(
               SYMBOL,
-              List.of(new Types.MassQuoteLegInput("BUY", Decimals.fromDouble(crossPx), "0.003")),
+              List.of(new Types.MassQuoteLegInput("BUY", "70875.5", "0.003")),
               Boolean.FALSE);
       java.util.ArrayList<Long> strayIds = new java.util.ArrayList<>();
       for (Types.MassQuoteLegResult r : mq.results()) {

@@ -130,10 +130,9 @@ List available tasks:
 
 ## Follow the current SDK
 
-Pin: `sdk/UPSTREAM_REF`. Prices and sizes are **decimal strings**. Numeric
-`placeOrder` / `modifyOrder` / mass-quote constructors are gone. Format a
-local `double` with `Decimals.fromDouble` (or pass a string literal) before
-the call.
+Pin: `sdk/UPSTREAM_REF`. Prices and sizes are **decimal strings**. Pass
+literals at the call, for example quantity `"0.001"` and price `"67500.5"`.
+Numeric constructors are gone. Do not convert a `double` before the call.
 
 Environment **names** only (values stay in `.env`, never in this README):
 

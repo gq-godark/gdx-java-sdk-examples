@@ -111,13 +111,14 @@ public class MyBot {
             .passphrase(pass)
             .build()) {
       client.connect();
+      client.subscribe("orders", "positions");
       Types.OrderAck ack =
           client.placeOrder(
               "BTC-USDC-PERP",
               "SELL",
               "LIMIT",
-              0.01,
-              999_999.0,
+              "0.01",
+              "999999",
               "GTC",
               false,
               null,

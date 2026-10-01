@@ -30,13 +30,14 @@ public class Bot {
             .passphrase("...")
             .build()) {
       client.connect();
+      client.subscribe("orders", "positions");
       Types.OrderAck ack =
           client.placeOrder(
               "BTC-USDC-PERP",
               "SELL",
               "LIMIT",
-              0.01,
-              999_999.0,
+              "0.01",
+              "999999",
               "GTC",
               false,
               null,
@@ -105,11 +106,11 @@ TransportConfig transport =
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `connect` | `void connect() throws GodarkException` | Authenticate and establish encrypted session |
+| `connect` | `void connect() throws GodarkException` | Mint a REST access token, then WebSocket-authenticate with that token |
 | `disconnect` | `void disconnect()` | Close socket and reset session |
 | `logout` | `void logout() throws GodarkException` | Logout then disconnect |
 | `close` | `void close()` | `AutoCloseable` — delegates to `disconnect()` |
-| `account` | `Optional<String> account()` | Authenticated base58 L2 account after connect |
+| `account` | `Optional<String> account()` | Authenticated base58 account after connect |
 
 ### Trading commands
 
@@ -127,7 +128,7 @@ the wire (see **Enums**).
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `subscribe` | `void subscribe(String... channels) throws GodarkException` | Subscribe to private channels (`orders`, `positions`) |
+| `subscribe` | `void subscribe(String... channels) throws GodarkException` | `/ws/v1` channels: `orders`, `positions`, `volume`, `open_interest`, `funding_rate`. Unknown channel fails fast. No trades or L2 book. |
 | `subscribe` | `void subscribe() throws GodarkException` | Subscribe to `orders` and `positions` |
 | `unsubscribe` | `void unsubscribe(String... channels) throws GodarkException` | Unsubscribe |
 | `pollOrderUpdate` | `Optional<OrderUpdate> pollOrderUpdate(long millis) throws InterruptedException` | Blocking poll from order queue |
@@ -181,9 +182,15 @@ issuing the next.
 
 `Types.PlaceOrderOptions` (optional last argument on `placeOrder`) includes
 `reduceOnly`, `postOnly`, `stpMode`, `pegOffsetBps`, `triggerPrice`,
-`takeProfitPrice`, `stopLossPrice`, and `slippageBps`. Omit `slippageBps` (null)
-to use the venue max walk cap (localnet 5%); typical explicit values are 50–500
-bps (0.5%–5%).
+`takeProfitPrice`, `stopLossPrice`, and `slippageBps`. `slippageBps` applies
+only to `MARKET` and `STOP_MARKET`. Omit it (null) to use the venue max walk
+cap (localnet 5%); typical explicit values are 50–500 bps (0.5%–5%). `PEG` is
+not post-only.
+
+WebSocket login uses the REST access token, not `id:secret:passphrase`. A
+client-order id is registered only after a successful WebSocket place and is
+cached only after `POST /orders/_register_coid` returns HTTP 200. REST place
+does not register a client-order id.
 
 ## Core Types
 

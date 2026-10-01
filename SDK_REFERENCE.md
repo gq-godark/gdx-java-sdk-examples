@@ -157,11 +157,11 @@ consumer site.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `connect` | `void connect() throws GodarkException` | Authenticate and establish encrypted session |
+| `connect` | `void connect() throws GodarkException` | Mint a REST access token for key-pair credentials, then WebSocket-authenticate with that token and open the HPKE session |
 | `disconnect` | `void disconnect()` | Close socket and reset session |
 | `logout` | `void logout() throws GodarkException` | Logout then disconnect |
 | `close` | `void close()` | `AutoCloseable` — delegates to `disconnect()` |
-| `account` | `Optional<String> account()` | Authenticated base58 L2 account after connect |
+| `account` | `Optional<String> account()` | Authenticated base58 account after connect |
 
 ### Trading commands
 
@@ -177,11 +177,23 @@ consumer site.
 (for example `"SELL"`, `"LIMIT"`, `"GTC"`). Stream updates use protobuf enums on
 the wire (see **Enums**).
 
+WebSocket login uses the REST access token from `POST /api/v1/auth/token`
+(`grant_type=client_credentials`). `GodarkClient.connect()` mints that token
+and sends it on the authenticate frame. Do not send `id:secret:passphrase` on
+`/ws/v1`.
+
+A non-blank client-order id is registered only after a successful WebSocket
+place (ack `success` and a non-blank `orderId`). The SDK then calls
+`POST /orders/_register_coid` with the place-header correlation and caches the
+mapping only after HTTP 200. A failed register is not swallowed. REST
+`placeOrder` rejects a client-order id: REST place does not arm the
+correlation and does not register it.
+
 ### Streams
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `subscribe` | `void subscribe(String... channels) throws GodarkException` | Subscribe to private channels (`orders`, `positions`) |
+| `subscribe` | `void subscribe(String... channels) throws GodarkException` | Subscribe on `/ws/v1`. Accepted channels: `orders`, `positions`, `volume`, `open_interest`, `funding_rate`. An unknown channel fails immediately. No trades feed and no L2 book on `/ws/v1`. |
 | `subscribe` | `void subscribe() throws GodarkException` | Subscribe to `orders` and `positions` |
 | `unsubscribe` | `void unsubscribe(String... channels) throws GodarkException` | Unsubscribe |
 | `pollOrderUpdate` | `Optional<OrderUpdate> pollOrderUpdate(long millis) throws InterruptedException` | Blocking poll from order queue |
@@ -317,8 +329,10 @@ orders.
 `reduceOnly`, `postOnly`, `stpMode`, `pegOffsetBps`, `triggerPrice`,
 `takeProfitPrice`, `stopLossPrice`, `slippageBps`, and `quoteNotional`.
 `triggerPrice` / `takeProfitPrice` / `stopLossPrice` / `quoteNotional` are
-**decimal strings** (not numbers). Omit `slippageBps` (null) to use the venue
-max walk cap (localnet 5%); typical explicit values are 50–500 bps (0.5%–5%).
+**decimal strings** (not numbers). `slippageBps` is only for `MARKET` and
+`STOP_MARKET`. Omit it (null) to use the venue max walk cap (localnet 5%);
+typical explicit values are 50–500 bps (0.5%–5%). A `PEG` order is not
+post-only (`postOnly` stays false; peg offset is `pegOffsetBps`).
 `MassQuoteLegInput` and `BatchModifyLegInput` likewise take string prices/sizes
 only.
 

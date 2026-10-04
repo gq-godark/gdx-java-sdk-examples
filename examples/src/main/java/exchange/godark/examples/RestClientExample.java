@@ -7,9 +7,9 @@ import godark.GodarkRestClient;
 import godark.Types;
 
 /**
- * Minimal GodarkRestClient demo — public market-data GETs + REST auth + encrypted snapshots.
+ * Minimal GodarkRestClient demo — public market-data GETs, REST auth, and account snapshots.
  *
- * <p>For encrypted place/modify/cancel over REST (one-shot HPKE), see RestTraderExample.
+ * <p>Encrypted trading is WebSocket-only; see Quickstart or FullTraderExample.
  *
  * <pre>
  *   ./gradlew -p examples runRestClientExample
@@ -42,6 +42,10 @@ public final class RestClientExample {
             .apiKeyId(apiKeyId)
             .apiSecret(apiSecret)
             .passphrase(passphrase);
+    String configuredAccount = ExamplesEnv.first("GODARK_ACCOUNT", "GDX_ACCOUNT");
+    if (configuredAccount != null && !configuredAccount.isBlank()) {
+      builder.account(configuredAccount);
+    }
     String restBase = ExamplesEnv.first("GODARK_REST_URL", "GDX_REST_URL");
     if (restBase != null && !restBase.isBlank()) {
       builder.restBaseUrl(restBase);
@@ -61,8 +65,8 @@ public final class RestClientExample {
       System.out.println("connecting (REST auth/token)...");
       client.connect();
       System.out.printf(
-          "identity user_uuid=%s scope=%s%n",
-          client.userUuid().orElse("?"), client.tokenScope().orElse(""));
+          "identity account=%s scope=%s%n",
+          client.account().orElse("?"), client.tokenScope().orElse(""));
 
       try {
         Types.OpenOrdersSnapshot open = client.getOpenOrders();
@@ -73,9 +77,9 @@ public final class RestClientExample {
 
       try {
         Types.AccountMarginUpdate account = client.getAccount();
-        if (account.account() != null) {
+        if (account.summary() != null) {
           System.out.printf(
-              "account total_collateral=%s%n", account.account().totalCollateral());
+              "account total_collateral=%s%n", account.summary().totalCollateral());
         }
       } catch (GodarkException e) {
         System.out.println("getAccount skipped: " + e.getMessage());
@@ -94,7 +98,7 @@ public final class RestClientExample {
       }
 
       System.out.println("REST reads succeeded.");
-      System.out.println("For REST trading (place/modify/cancel), see RestTraderExample.");
+      System.out.println("For HPKE WebSocket trading, see Quickstart or FullTraderExample.");
     }
   }
 }

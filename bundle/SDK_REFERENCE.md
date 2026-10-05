@@ -10,8 +10,7 @@ it does not include a full REST trader or REST mass-quote / batch wrappers.
 A standalone WebSocket market-data client also ships in the JAR but is outside
 the bundled examples in this distribution.
 
-Order placement support in this MM distribution is limited to `MARKET` and
-`LIMIT`.
+Bundled samples place post-only `LIMIT` orders priced from a live mark.
 
 ## Quick Start
 
@@ -236,8 +235,8 @@ Commonly used wire values include:
 - **Order status / update types:** `NEW`, `FILLED`, `CANCELLED`, `REJECTED`,
   `MODIFIED`, … (see generated enum definitions in the JAR)
 
-Note: the wire enum includes additional order types for compatibility, but this
-MM distribution supports placing only **`MARKET`** and **`LIMIT`** orders.
+Note: the wire enum includes additional order types for compatibility, but the
+bundled samples place post-only **`LIMIT`** orders only.
 
 ## Errors
 

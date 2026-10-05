@@ -7,8 +7,7 @@ It includes:
   `sdk/UPSTREAM_REF` — **no private Maven registry required**, the same idea
   as shipping the **`godark` wheel** in the Python MM bundle or **`libgodark.a`**
   in the C++ MM bundle
-- minimal darkpool trading examples (**market** and **limit** orders only in
-  the samples)
+- minimal darkpool trading examples (post-only **limit** orders in the samples)
 - a simple **`.env`** workflow (no shell `export` required)
 
 The JAR is a *shaded* build: every transitive dependency
@@ -181,8 +180,8 @@ client-order id; it does not register one.
 
 **Read a position.** After `subscribe("positions")`, use
 `onPositionsSnapshot` / `pollPositionsSnapshot` (`PositionRow.size` and
-`entryPrice` are strings). `RestClientExample` reads account, open orders,
-and leverage over HTTP.
+`entryPrice` are strings). `RestClientExample` reads positions, open orders,
+and account over HTTP.
 
 **Cancel.** `cancelOrder(orderId, symbol)` or `cancelAllOrders(symbol)`.
 
@@ -190,12 +189,11 @@ and leverage over HTTP.
 
 | Sample | Gradle task | Purpose |
 |--------|-------------|---------|
-| `Quickstart.java` | `./gradlew runQuickstart` | Connect → subscribe `orders` + `positions` → string LIMIT sell → cancel-all |
-| `FullTraderExample.java` | `./gradlew runFullTraderExample` | Callbacks, string place / modify / cancel, market slippage, mass-quote |
-| `RestClientExample.java` | `./gradlew runRestClientExample` | REST token auth, account / leverage reads, public funding / OI / volume |
+| `Quickstart.java` | `./gradlew runQuickstart` | Connect → subscribe `orders` + `positions` → post-only LIMIT sell priced from the live mark → cancel that order |
+| `FullTraderExample.java` | `./gradlew runFullTraderExample` | Callbacks, post-only place / modify / cancel, mass-quote of its own orders |
+| `RestClientExample.java` | `./gradlew runRestClientExample` | REST token auth, positions / open orders / account reads, public funding / OI / volume |
 
-Order-type support in this MM distribution is limited to **`MARKET`** and
-**`LIMIT`**.
+The bundled samples place post-only **`LIMIT`** orders only.
 
 ## Packaging for market makers
 

@@ -3,7 +3,7 @@
 This package provides the GoDark Java SDK and minimal examples for encrypted
 darkpool trading.
 
-Supported order types in this distribution: `MARKET`, `LIMIT`.
+Bundled samples place post-only `LIMIT` orders priced from a live mark.
 
 ## Package contents
 

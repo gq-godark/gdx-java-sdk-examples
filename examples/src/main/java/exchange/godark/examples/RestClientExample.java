@@ -46,9 +46,11 @@ public final class RestClientExample {
     if (configuredAccount != null && !configuredAccount.isBlank()) {
       builder.account(configuredAccount);
     }
-    String restBase = ExamplesEnv.first("GODARK_REST_URL", "GDX_REST_URL");
+    String restBase =
+        ExamplesEnv.first(
+            "GODARK_REST_URL", "GDX_REST_URL", "GODARK_EDGE_URL", "GDX_EDGE_URL");
     if (restBase != null && !restBase.isBlank()) {
-      builder.restBaseUrl(restBase);
+      builder.restBaseUrl(exchange.godark.examples.support.LiveMark.httpOrigin(restBase));
     }
 
     try (GodarkRestClient client = builder.build()) {
@@ -81,6 +83,9 @@ public final class RestClientExample {
 
       System.out.println("REST reads succeeded.");
       System.out.println("For REST trading (place/modify/cancel), see the SDK REST trader.");
+    } catch (Exception e) {
+      System.err.println(e.getMessage());
+      System.exit(1);
     }
   }
 }

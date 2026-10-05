@@ -2,25 +2,18 @@ package exchange.godark.examples;
 
 import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
+import exchange.godark.examples.support.LiveMark;
+import exchange.godark.examples.support.SampleOrders;
 import godark.Environment;
 import godark.GodarkClient;
 import godark.GodarkException;
 import godark.TransportConfig;
-import godark.Types;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
-/** Minimal MM example: far-from-market LIMIT SELL then cancel. */
+/** Minimal MM example: post-only LIMIT SELL priced off the live mark, then cancel that order. */
 public final class Quickstart {
-
-  private static final String SYMBOL = "BTC-USDC-PERP";
-
-  /** Price override is a decimal string. It is not parsed through {@code double}. */
-  private static String priceOr(String literal) {
-    String raw = ExamplesEnv.first("GODARK_E2E_PRICE", "GDX_E2E_PRICE", "GDX_LIVE_PRICE");
-    if (raw != null && !raw.isBlank()) {
-      return raw.strip();
-    }
-    return literal;
-  }
 
   private Quickstart() {}
 
@@ -66,7 +59,28 @@ public final class Quickstart {
       b.transport(TransportConfig.DEFAULT.withSslContext(InsecureSsl.context()));
     }
 
+    BigDecimal mark;
+    try {
+      mark = LiveMark.resolve(base);
+    } catch (Exception e) {
+      System.err.println("No live mark; placing nothing: " + e.getMessage());
+      System.exit(1);
+      return;
+    }
+    String sellPrice = LiveMark.sellPrice(mark);
+    System.out.printf("mark=%s  post-only SELL @ %s qty=%s%n", mark.toPlainString(), sellPrice, LiveMark.QTY);
+
+    try {
+      SampleOrders.requireFlat(base);
+    } catch (Exception e) {
+      System.err.println(e.getMessage());
+      System.exit(1);
+      return;
+    }
+
     GodarkClient client = b.build();
+    List<String> placed = new ArrayList<>();
+    int code = 0;
     try {
       client.connect();
       String connectedAccount = client.account().orElse("");
@@ -75,26 +89,33 @@ public final class Quickstart {
         // Book confirmation waits on private order updates; subscribe first.
         client.subscribe("orders", "positions");
         Thread.sleep(350);
-        Types.OrderAck ack =
-            client.placeOrder(
-                SYMBOL, "SELL", "LIMIT", "0.01", priceOr("999999"), "GTC", false, null, null);
-        System.out.printf(
-            "Place OK — order_id=%s (limit SELL @ %s)%n", ack.orderId(), priceOr("999999"));
-        // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).
-        Thread.sleep(500);
-        Types.OrderAck cancelAck = client.cancelOrder(ack.orderId(), SYMBOL);
-        System.out.println("cancel OK — order_id=" + cancelAck.orderId());
-      } catch (GodarkException e) {
+        String orderId = SampleOrders.place(client, "SELL", LiveMark.QTY, sellPrice, placed);
+        System.out.printf("Place OK — order_id=%s (post-only limit SELL @ %s)%n", orderId, sellPrice);
+        SampleOrders.cancelAll(client, placed);
+        SampleOrders.flattenAndRequireFlat(client, base, mark);
+      } catch (Exception e) {
         System.err.println("Order rejected: " + e.getMessage());
-        System.exit(1);
-        return;
+        try {
+          SampleOrders.cancelAll(client, placed);
+        } catch (Exception cancelError) {
+          System.err.println("cleanup cancel failed: " + cancelError.getMessage());
+        }
+        try {
+          SampleOrders.flattenAndRequireFlat(client, base, mark);
+        } catch (Exception flatError) {
+          System.err.println("account not flat after cleanup: " + flatError.getMessage());
+        }
+        code = 1;
       }
     } catch (GodarkException e) {
       System.err.println(e.getMessage());
-      System.exit(1);
-      return;
+      code = 1;
     } finally {
       client.disconnect();
+    }
+    if (code != 0) {
+      System.exit(code);
+      return;
     }
     System.out.println("Disconnected");
   }

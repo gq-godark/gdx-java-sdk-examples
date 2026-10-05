@@ -315,27 +315,8 @@ public final class FullTraderExample {
       drainOrders("after MODIFY", orderEvents);
     }
 
-    // Market IOC with explicit walk cap: 50 bps = 0.5% of mark (UI default).
-    // Omit slippageBps → venue max (localnet 5%).
-    System.out.println("Placing market IOC BUY qty=0.01 with slippageBps=50 (0.5% walk)...");
-    try {
-      Types.OrderAck mktAck =
-          client.placeOrder(
-              SYMBOL,
-              "BUY",
-              "MARKET",
-              "0.01",
-              null,
-              "IOC",
-              false,
-              null,
-              null,
-              new Types.PlaceOrderOptions(
-                  false, false, Enums.stpUnset(), null, null, null, null, 50));
-      System.out.println("MARKET BUY placed: order_id=" + mktAck.orderId());
-    } catch (GodarkException e) {
-      System.err.println("Market BUY rejected (continuing): " + e.getMessage());
-    }
+    // A market IOC can fill and leave a position. This sample does not send one.
+    System.out.println("Skipping market IOC so the sample does not open a position.");
 
     TimeUnit.SECONDS.sleep(1);
     drainOrders("after MARKET BUY", orderEvents);
@@ -409,12 +390,14 @@ public final class FullTraderExample {
     drainOrders("after MASS QUOTE", orderEvents);
 
     if (!restingIds.isEmpty()) {
-      System.out.println("cancel_all_orders (cleanup ladder)...");
-      try {
-        Types.CountAck ca = client.cancelAllOrders(SYMBOL);
-        System.out.printf("  cancel_all: count=%d ids=%s%n", ca.count(), ca.orderIds());
-      } catch (GodarkException e) {
-        System.err.println("cancel_all rejected: " + e.getMessage());
+      System.out.println("Cancelling " + restingIds.size() + " ladder order(s) by id...");
+      for (Long id : restingIds) {
+        try {
+          Types.OrderAck ca = client.cancelOrder(Long.toString(id), SYMBOL);
+          System.out.println("  cancel order_id=" + ca.orderId());
+        } catch (GodarkException e) {
+          System.err.println("cancel " + id + " rejected: " + e.getMessage());
+        }
       }
       TimeUnit.MILLISECONDS.sleep(500);
       drainOrders("after CANCEL ALL", orderEvents);
@@ -440,15 +423,14 @@ public final class FullTraderExample {
     }
     TimeUnit.MILLISECONDS.sleep(500);
 
-    // postOnly=false (relaxed): the crossing leg takes liquidity up to its limit
-    // and rests the remainder; taker fills are reported per leg as fillCount.
+    // postOnly=false prices below the ladder so the leg rests instead of filling.
     System.out.println(
-        "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...");
+        "Mass-quoting a resting BUY @ 64000.5 with post_only=false (cancelled by id)...");
     try {
       Types.MassQuoteAck mq =
           client.massQuote(
               SYMBOL,
-              List.of(new Types.MassQuoteLegInput("BUY", "70875.5", "0.003")),
+              List.of(new Types.MassQuoteLegInput("BUY", "64000.5", "0.003")),
               Boolean.FALSE);
       java.util.ArrayList<Long> strayIds = new java.util.ArrayList<>();
       for (Types.MassQuoteLegResult r : mq.results()) {

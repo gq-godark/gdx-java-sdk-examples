@@ -2,13 +2,15 @@ package exchange.godark.examples;
 
 import exchange.godark.examples.support.ExamplesEnv;
 import exchange.godark.examples.support.InsecureSsl;
+import exchange.godark.examples.support.LiveMark;
+import exchange.godark.examples.support.SampleOrders;
 import godark.ConnectionException;
-import godark.Enums;
 import godark.Environment;
 import godark.GodarkClient;
 import godark.GodarkException;
 import godark.TransportConfig;
 import godark.Types;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -33,7 +35,7 @@ public final class FullTraderExample {
     System.out.println(sep);
     System.out.println("  GoDark Java SDK — Trader Reference Example");
     System.out.println(sep);
-    System.out.println("Order-type support in this distribution: MARKET, LIMIT");
+    System.out.println("Order-type support in this sample: post-only LIMIT");
 
     String legacyKey = ExamplesEnv.first("GODARK_API_KEY", "GDX_API_KEY");
 
@@ -215,30 +217,20 @@ public final class FullTraderExample {
       return;
     }
 
+    int code = 0;
     try {
-      runSession(client, counts, orderEvents, nonFatal, sep);
-    } catch (GodarkException e) {
+      runSession(client, base, counts, orderEvents, nonFatal, sep);
+    } catch (Exception e) {
       System.err.println(e.getMessage());
-      System.exit(1);
-      return;
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      System.err.println("Interrupted");
-      System.exit(1);
-      return;
+      code = 1;
     } finally {
       client.disconnect();
     }
-    System.out.println("Disconnected cleanly");
-  }
-
-  /** Price override is a decimal string. It is not parsed through {@code double}. */
-  private static String priceOr(String literal) {
-    String raw = ExamplesEnv.first("GODARK_E2E_PRICE", "GDX_E2E_PRICE", "GDX_LIVE_PRICE");
-    if (raw != null && !raw.isBlank()) {
-      return raw.strip();
+    if (code != 0) {
+      System.exit(code);
+      return;
     }
-    return literal;
+    System.out.println("Disconnected cleanly");
   }
 
   private static void drainOrders(String label, ArrayDeque<Types.OrderUpdate> orderEvents) {
@@ -269,228 +261,139 @@ public final class FullTraderExample {
     }
   }
 
+  private static void rememberQuoteIds(Types.MassQuoteAck ack, List<String> placed)
+      throws GodarkException {
+    if (ack == null) {
+      throw new GodarkException("mass quote returned no ack");
+    }
+    boolean failed = !ack.success();
+    for (Types.MassQuoteLegResult leg : ack.results()) {
+      System.out.printf(
+          "  leg %d: status=%s new_order_id=%s fills=%d err=%s%n",
+          leg.legIndex(), leg.status(), leg.newOrderId(), leg.fillCount(), leg.errorCode());
+      String id = leg.newOrderId();
+      if (id != null && !id.isBlank()) {
+        placed.add(id);
+      }
+      if (!"open".equals(leg.status()) || leg.fillCount() != 0 || id == null || id.isBlank()) {
+        failed = true;
+      }
+    }
+    if (failed) {
+      throw new GodarkException("mass quote leg failed");
+    }
+  }
+
   private static void runSession(
       GodarkClient client,
+      String base,
       Map<String, Integer> counts,
       ArrayDeque<Types.OrderUpdate> orderEvents,
       ArrayDeque<String> nonFatal,
       String sep)
-      throws GodarkException, InterruptedException {
+      throws Exception {
 
-    System.out.println("Setting leverage to 1 via updateLeverage...");
+    BigDecimal mark = LiveMark.resolve(base);
+    String buyPrice = LiveMark.buyPrice(mark, BigDecimal.ZERO);
+    String modifyPrice = LiveMark.buyPrice(mark, new BigDecimal("100"));
+    String sellPrice = LiveMark.sellPrice(mark);
+    String ladderA = LiveMark.buyPrice(mark, BigDecimal.ZERO);
+    String ladderB = LiveMark.buyPrice(mark, new BigDecimal("500"));
+    String ladderC = LiveMark.buyPrice(mark, new BigDecimal("1000"));
+    System.out.printf(
+        "mark=%s buy=%s modify=%s sell=%s ladder=%s / %s / %s%n",
+        mark.toPlainString(), buyPrice, modifyPrice, sellPrice, ladderA, ladderB, ladderC);
+    SampleOrders.requireFlat(base);
+
+    List<String> placed = new ArrayList<>();
+    Exception failure = null;
     try {
+      System.out.println("Setting leverage to 1 via updateLeverage...");
       Types.OrderAck levAck = client.updateLeverage(SYMBOL, 1);
+      if (levAck == null || !levAck.success()) {
+        throw new GodarkException(
+            "updateLeverage failed: " + (levAck == null ? "null" : levAck.error()));
+      }
       System.out.printf(
           "updateLeverage: success=%s  order_id=%s%n", levAck.success(), levAck.orderId());
-    } catch (GodarkException e) {
-      System.err.println("updateLeverage rejected: " + e.getMessage());
-      return;
-    }
 
-    System.out.printf("Placing limit BUY @ %s qty=0.001...%n", priceOr("67500.5"));
-    Types.OrderAck buyAck = null;
-    try {
-      buyAck =
-          client.placeOrder(
-              SYMBOL, "BUY", "LIMIT", "0.001", priceOr("67500.5"), "GTC", false, null, null);
-      System.out.printf(
-          "BUY placed: order_id=%s  sequence=%s%n", buyAck.orderId(), buyAck.sequence());
-    } catch (GodarkException e) {
-      System.err.println("BUY rejected (continuing to market order): " + e.getMessage());
-    }
+      System.out.printf("Placing post-only limit BUY @ %s qty=%s...%n", buyPrice, LiveMark.QTY);
+      String buyId = SampleOrders.place(client, "BUY", LiveMark.QTY, buyPrice, placed);
+      System.out.println("BUY placed: order_id=" + buyId);
+      TimeUnit.SECONDS.sleep(1);
+      drainOrders("after BUY", orderEvents);
 
-    TimeUnit.SECONDS.sleep(1);
-    drainOrders("after BUY", orderEvents);
-
-    if (buyAck != null) {
-      System.out.println("Modifying order price to 67400.5...");
-      try {
-        Types.OrderAck modAck =
-            client.modifyOrder(buyAck.orderId(), SYMBOL, "67400.5", null);
-        System.out.println("Modified: order_id=" + modAck.orderId());
-      } catch (GodarkException e) {
-        System.err.println("Modify rejected: " + e.getMessage());
+      System.out.println("Modifying order price to " + modifyPrice + "...");
+      Types.OrderAck modAck = client.modifyOrder(buyId, SYMBOL, modifyPrice, null);
+      if (modAck == null
+          || !modAck.success()
+          || modAck.orderId() == null
+          || modAck.orderId().isBlank()) {
+        throw new GodarkException(
+            "modify failed: " + (modAck == null ? "null" : modAck.error()));
       }
+      String modifiedId = modAck.orderId();
+      if (!modifiedId.equals(buyId)) {
+        placed.remove(buyId);
+        if (!placed.contains(modifiedId)) {
+          placed.add(modifiedId);
+        }
+      }
+      System.out.println("Modified: order_id=" + modifiedId);
       TimeUnit.SECONDS.sleep(1);
       drainOrders("after MODIFY", orderEvents);
-    }
+      System.out.println("Cancelling modified BUY...");
+      SampleOrders.cancelAll(client, placed);
+      drainOrders("after BUY cancel", orderEvents);
 
-    // Market IOC with explicit walk cap: 50 bps = 0.5% of mark (UI default).
-    // Omit slippageBps → venue max (localnet 5%).
-    System.out.println("Placing market IOC BUY qty=0.01 with slippageBps=50 (0.5% walk)...");
-    try {
-      Types.OrderAck mktAck =
-          client.placeOrder(
+      System.out.printf("Placing post-only limit SELL @ %s qty=%s...%n", sellPrice, LiveMark.QTY);
+      String sellId = SampleOrders.place(client, "SELL", LiveMark.QTY, sellPrice, placed);
+      System.out.println("SELL placed: order_id=" + sellId);
+      SampleOrders.cancelAll(client, placed);
+      drainOrders("after SELL/CANCEL", orderEvents);
+
+      System.out.printf(
+          "Mass-quoting a 3-level post-only BUY ladder @ %s / %s / %s qty=%s...%n",
+          ladderA, ladderB, ladderC, LiveMark.QTY);
+      Types.MassQuoteAck mq =
+          client.massQuote(
               SYMBOL,
-              "BUY",
-              "MARKET",
-              "0.01",
-              null,
-              "IOC",
-              false,
-              null,
-              null,
-              new Types.PlaceOrderOptions(
-                  false, false, Enums.stpUnset(), null, null, null, null, 50));
-      System.out.println("MARKET BUY placed: order_id=" + mktAck.orderId());
-    } catch (GodarkException e) {
-      System.err.println("Market BUY rejected (continuing): " + e.getMessage());
-    }
-
-    TimeUnit.SECONDS.sleep(1);
-    drainOrders("after MARKET BUY", orderEvents);
-
-    System.out.println("Placing limit SELL @ 999999 qty=0.001...");
-    try {
-      Types.OrderAck sellAck =
-          client.placeOrder(
-              SYMBOL,
-              "SELL",
-              "LIMIT",
-              "0.001",
-              "999999",
-              "GTC",
-              false,
-              null,
-              null,
-              new Types.PlaceOrderOptions(false, true, Enums.stpUnset(), null, null, null, null));
-      System.out.println("SELL placed: order_id=" + sellAck.orderId());
-      TimeUnit.MILLISECONDS.sleep(500);
-      try {
-        Types.OrderAck cack = client.cancelOrder(sellAck.orderId(), SYMBOL);
-        System.out.println("SELL cancelled: order_id=" + cack.orderId());
-      } catch (GodarkException e) {
-        System.err.println("Cancel SELL rejected: " + e.getMessage());
-      }
-    } catch (GodarkException e) {
-      System.err.println("SELL rejected: " + e.getMessage());
-    }
-
-    TimeUnit.SECONDS.sleep(1);
-    drainOrders("after SELL/CANCEL", orderEvents);
-
-    // --- Bulk quote (mass quote) ---
-    // Place a whole ladder of resting quotes in one batched request. Passing
-    // null (or true) for postOnly keeps post-only behaviour: a leg that would
-    // cross is rejected as "failed" so the batch fuses into a single MPC round.
-    // Pass Boolean.FALSE for the relaxed path, where a crossing leg takes
-    // liquidity up to its limit and rests the remainder (the number of taker
-    // fills is reported per leg as fillCount).
-    System.out.println(
-        "Mass-quoting a 3-level BUY ladder (post-only) @ 67300.5 / 67100.5 / 66900.5...");
-    List<Types.MassQuoteLegInput> ladder =
-        List.of(
-            new Types.MassQuoteLegInput("BUY", "67300.5", "0.02"),
-            new Types.MassQuoteLegInput("BUY", "67100.5", "0.02"),
-            new Types.MassQuoteLegInput("BUY", "66900.5", "0.02"));
-    List<Long> restingIds = new ArrayList<>();
-    try {
-      Types.MassQuoteAck mq = client.massQuote(SYMBOL, ladder, null);
+              List.of(
+                  new Types.MassQuoteLegInput("BUY", ladderA, LiveMark.QTY),
+                  new Types.MassQuoteLegInput("BUY", ladderB, LiveMark.QTY),
+                  new Types.MassQuoteLegInput("BUY", ladderC, LiveMark.QTY)),
+              Boolean.TRUE);
       System.out.printf(
           "Mass quote: success=%s sequence=%s legs=%d%n",
           mq.success(), mq.sequence(), mq.results().size());
-      for (Types.MassQuoteLegResult r : mq.results()) {
-        System.out.printf(
-            "  leg %d: status=%s new_order_id=%s fills=%d err=%s%n",
-            r.legIndex(), r.status(), r.newOrderId(), r.fillCount(), r.errorCode());
-        if ("open".equals(r.status()) && r.newOrderId() != null && !r.newOrderId().isBlank()) {
-          try {
-            restingIds.add(Long.parseLong(r.newOrderId()));
-          } catch (NumberFormatException ignore) {
-            // non-numeric id; skip cleanup for this leg
-          }
-        }
-      }
-    } catch (GodarkException e) {
-      System.err.println("Mass quote rejected: " + e.getMessage());
-    }
-
-    TimeUnit.SECONDS.sleep(1);
-    drainOrders("after MASS QUOTE", orderEvents);
-
-    if (!restingIds.isEmpty()) {
-      System.out.println("cancel_all_orders (cleanup ladder)...");
-      try {
-        Types.CountAck ca = client.cancelAllOrders(SYMBOL);
-        System.out.printf("  cancel_all: count=%d ids=%s%n", ca.count(), ca.orderIds());
-      } catch (GodarkException e) {
-        System.err.println("cancel_all rejected: " + e.getMessage());
-      }
-      TimeUnit.MILLISECONDS.sleep(500);
-      drainOrders("after CANCEL ALL", orderEvents);
-    }
-
-    // Crossing BUY is a decimal string above the ladder. post_only=true rejects
-    // a would-cross leg; post_only=false may take liquidity.
-    // postOnly=true: a crossing leg is rejected (would-cross, error_code 2018).
-    System.out.println("Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...");
-    try {
-      Types.MassQuoteAck mq =
-          client.massQuote(
-              SYMBOL,
-              List.of(new Types.MassQuoteLegInput("BUY", "70875.5", "0.001")),
-              Boolean.TRUE);
-      for (Types.MassQuoteLegResult r : mq.results()) {
-        System.out.printf(
-            "  leg %d: status=%s err=%s fills=%d%n",
-            r.legIndex(), r.status(), r.errorCode(), r.fillCount());
-      }
-    } catch (GodarkException e) {
-      System.err.println("post_only=true mass quote rejected: " + e.getMessage());
-    }
-    TimeUnit.MILLISECONDS.sleep(500);
-
-    // postOnly=false (relaxed): the crossing leg takes liquidity up to its limit
-    // and rests the remainder; taker fills are reported per leg as fillCount.
-    System.out.println(
-        "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...");
-    try {
-      Types.MassQuoteAck mq =
-          client.massQuote(
-              SYMBOL,
-              List.of(new Types.MassQuoteLegInput("BUY", "70875.5", "0.003")),
-              Boolean.FALSE);
-      java.util.ArrayList<Long> strayIds = new java.util.ArrayList<>();
-      for (Types.MassQuoteLegResult r : mq.results()) {
-        System.out.printf(
-            "  leg %d: status=%s new_order_id=%s err=%s fills=%d%n",
-            r.legIndex(), r.status(), r.newOrderId(), r.errorCode(), r.fillCount());
-        if ("open".equals(r.status()) && r.newOrderId() != null && !r.newOrderId().isBlank()) {
-          try {
-            strayIds.add(Long.parseLong(r.newOrderId()));
-          } catch (NumberFormatException ignore) {
-            // non-numeric id; skip cleanup for this leg
-          }
-        }
-      }
-      if (!strayIds.isEmpty()) {
-        System.out.printf(
-            "Batch-cancelling %d post_only=false remainder(s)...%n", strayIds.size());
+      rememberQuoteIds(mq, placed);
+      System.out.println("Cancelling " + placed.size() + " ladder order(s) by id...");
+      SampleOrders.cancelAll(client, placed);
+      drainOrders("after ladder cancel", orderEvents);
+    } catch (Exception e) {
+      failure = e;
+    } finally {
+      if (!placed.isEmpty()) {
         try {
-          Types.BatchCancelAck bc = client.batchCancel(SYMBOL, strayIds);
-          for (Types.BatchCancelLegResult r : bc.results()) {
-            System.out.printf(
-                "  cancel id=%s: cancelled=%s err=%s%n",
-                r.orderId(), r.cancelled(), r.errorCode());
+          SampleOrders.cancelAll(client, placed);
+        } catch (Exception cleanup) {
+          System.err.println("cleanup cancel failed: " + cleanup.getMessage());
+          if (failure == null) {
+            failure = cleanup;
           }
-        } catch (GodarkException e) {
-          System.err.println("post_only=false remainder cancel rejected: " + e.getMessage());
         }
       }
-    } catch (GodarkException e) {
-      System.err.println("post_only=false mass quote rejected: " + e.getMessage());
-    }
-    TimeUnit.SECONDS.sleep(1);
-    drainOrders("after post_only mass quotes", orderEvents);
-
-    if (buyAck != null) {
-      System.out.println("Cancelling original BUY (cleanup)...");
       try {
-        client.cancelOrder(buyAck.orderId(), SYMBOL);
-        System.out.println("Original BUY cancelled");
-      } catch (GodarkException e) {
-        System.out.println("Original BUY already filled or cancelled");
+        SampleOrders.flattenAndRequireFlat(client, base, mark);
+      } catch (Exception flatError) {
+        System.err.println("account not flat after cleanup: " + flatError.getMessage());
+        if (failure == null) {
+          failure = flatError;
+        }
       }
+    }
+    if (failure != null) {
+      throw failure;
     }
 
     TimeUnit.MILLISECONDS.sleep(350);

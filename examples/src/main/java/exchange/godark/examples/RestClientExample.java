@@ -9,7 +9,7 @@ import godark.Types;
 /**
  * Minimal GodarkRestClient demo — public market-data GETs, REST auth, and account snapshots.
  *
- * <p>Encrypted trading is WebSocket-only; see Quickstart or FullTraderExample.
+ * <p>For encrypted place/modify/cancel over REST, see the REST trader sample in the SDK.
  *
  * <pre>
  *   ./gradlew -p examples runRestClientExample
@@ -46,9 +46,11 @@ public final class RestClientExample {
     if (configuredAccount != null && !configuredAccount.isBlank()) {
       builder.account(configuredAccount);
     }
-    String restBase = ExamplesEnv.first("GODARK_REST_URL", "GDX_REST_URL");
+    String restBase =
+        ExamplesEnv.first(
+            "GODARK_REST_URL", "GDX_REST_URL", "GODARK_EDGE_URL", "GDX_EDGE_URL");
     if (restBase != null && !restBase.isBlank()) {
-      builder.restBaseUrl(restBase);
+      builder.restBaseUrl(exchange.godark.examples.support.LiveMark.httpOrigin(restBase));
     }
 
     try (GodarkRestClient client = builder.build()) {
@@ -68,37 +70,22 @@ public final class RestClientExample {
           "identity account=%s scope=%s%n",
           client.account().orElse("?"), client.tokenScope().orElse(""));
 
-      try {
-        Types.OpenOrdersSnapshot open = client.getOpenOrders();
-        System.out.printf("open_orders: %d rows%n", open.rows().size());
-      } catch (GodarkException e) {
-        System.out.println("getOpenOrders skipped: " + e.getMessage());
+      Types.PositionsSnapshot positions = client.getPositions();
+      Types.OpenOrdersSnapshot open = client.getOpenOrders();
+      Types.AccountMarginUpdate account = client.getAccount();
+      System.out.printf("positions: %d rows%n", positions.rows().size());
+      System.out.printf("open_orders: %d rows%n", open.rows().size());
+      String collateral = "?";
+      if (account.summary() != null) {
+        collateral = account.summary().totalCollateral();
       }
-
-      try {
-        Types.AccountMarginUpdate account = client.getAccount();
-        if (account.summary() != null) {
-          System.out.printf(
-              "account total_collateral=%s%n", account.summary().totalCollateral());
-        }
-      } catch (GodarkException e) {
-        System.out.println("getAccount skipped: " + e.getMessage());
-      }
-
-      try {
-        Types.LeverageSettings lev = client.getLeverage();
-        System.out.printf("leverage settings: %d entries%n", lev.settings().size());
-        System.out.println("  (WS push: onLeverageSettings in FullTraderExample.java)");
-        for (int i = 0; i < lev.settings().size() && i < 5; i++) {
-          Types.LeverageSetting row = lev.settings().get(i);
-          System.out.printf("  symbol_id=%d leverage=%d%n", row.symbolId(), row.leverage());
-        }
-      } catch (GodarkException e) {
-        System.out.println("getLeverage skipped: " + e.getMessage());
-      }
+      System.out.printf("account total_collateral=%s%n", collateral);
 
       System.out.println("REST reads succeeded.");
-      System.out.println("For HPKE WebSocket trading, see Quickstart or FullTraderExample.");
+      System.out.println("For REST trading (place/modify/cancel), see the SDK REST trader.");
+    } catch (Exception e) {
+      System.err.println(e.getMessage());
+      System.exit(1);
     }
   }
 }

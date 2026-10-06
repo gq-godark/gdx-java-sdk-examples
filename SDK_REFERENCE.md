@@ -19,7 +19,7 @@ sourcing-from-git instructions).
 > GETs; it does not include or claim a full REST trader or REST mass-quote /
 > batch wrappers. A standalone WebSocket market-data client also ships in
 > the JAR but is outside the bundled examples in this distribution.
-> Order placement support is limited to `MARKET` and `LIMIT`.
+> Bundled samples place post-only `LIMIT` orders priced from a live mark.
 
 ## Quick Start
 
@@ -321,8 +321,7 @@ Commonly used wire values include:
   `MODIFIED`, … (see generated enum definitions in the JAR)
 
 Note: the wire enum includes additional order types for compatibility, but
-this MM distribution supports placing only **`MARKET`** and **`LIMIT`**
-orders.
+the bundled samples place post-only **`LIMIT`** orders only.
 
 `Types.PlaceOrderOptions` (optional last argument on `placeOrder`) includes
 `reduceOnly`, `postOnly`, `stpMode`, `pegOffsetBps`, `triggerPrice`,
@@ -520,6 +519,6 @@ SDK pushes.
 ## REST client example
 
 Only `RestClientExample` is claimed here: it demonstrates REST auth, account
-snapshots, leverage reads, and public funding/OI/volume GETs. It is not a full
+snapshots, positions and open-order reads, and public funding/OI/volume GETs. It is not a full
 REST trader. Encrypted place/cancel/modify/update-leverage remain WebSocket-only
 via `GodarkClient`.
